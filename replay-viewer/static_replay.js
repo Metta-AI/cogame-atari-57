@@ -214,9 +214,9 @@
       clickMap: function (mapX, mapY) {
         if (worker) worker.postMessage({ type: 'click', x: mapX, y: mapY });
       },
-      // No zoomAt/setZoom/panBy/panByMap/panTo/resetView/attachMinimap: this
-      // arena is a fixed square that always fits the frame, so #viewpanel and
-      // every handler that drove it are gone from the page (see the removal
+      // No zoom, pan or minimap entry points at all. This arena is a fixed
+      // square that always fits the frame, so the zoom bar, the minimap and
+      // every handler that drove them are gone from the page (see the removal
       // banner in client/replay_broadcast.html). The Worker's core keeps the
       // implementation; nothing routes to it.
       getTransform: function () { return transform; },
