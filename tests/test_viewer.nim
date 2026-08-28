@@ -203,6 +203,30 @@ proc testLegibleAt360() =
         "#stage.tiny is no longer toggled at the 620px boundary")
   report(".plate-name survives 360px; the .tiny and 640px rules are present")
 
+proc testBubbleBand() =
+  ## A `say` is drawn in a RESERVED strip across the top of the board — rows
+  ## [0, 2) of the 35-tile board, above both top quadrants — never hung off an
+  ## avatar (cogchemists, 2026-08-24). And it must actually be CONSUMED:
+  ## `a57.bubbles` shipped on every frame and drawn nowhere is a readout the
+  ## spectator never sees.
+  let appended = gameBlock()
+  check(appended.contains("a57.bubbles"),
+        "the game block never reads a57.bubbles — the say band is not drawn")
+  check(appended.contains("#a57-bubbles {"), "#a57-bubbles has no CSS rule")
+  check(appended.contains("top: var(--topband, 0px);") and
+        appended.contains("* 2 / 35)"),
+        "#a57-bubbles is not the reserved rows-[0,2)-of-35 strip at the top " &
+        "of the board")
+  check(appended.contains("#a57-bubbles .a57-bubble {") and
+        appended.contains("overflow: hidden;"),
+        "a full-cap 48-rune say could spill out of its bubble")
+  check(appended.contains("#stage.tiny #a57-bubbles { display: none; }"),
+        "bubble text is not suppressed under .tiny")
+  let broadcast = readRepoFile("src/lane/broadcast.nim")
+  check(broadcast.contains("min(3, live.len)"),
+        "the bubble band is no longer capped at three at a time")
+  report("the say band is a reserved top-of-board strip, capped at three")
+
 proc testNoStarterIdentifiers() =
   ## No `ctf_` / `CTF_` / `paintball` identifier survives in client/,
   ## replay-viewer/ or src/ — EXCEPT the one `window.CTF_WIRE` read inside
@@ -308,6 +332,7 @@ when isMainModule:
   testBeatMarkers()
   testNoAliasCollision()
   testLegibleAt360()
+  testBubbleBand()
   testNoStarterIdentifiers()
   testBroadcastCoreDiffersOnlyInTheWireName()
   testStaticReplayMarkers()

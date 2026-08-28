@@ -2615,6 +2615,42 @@ body[data-embed] #board { top: 0; height: 100%; }
   z-index: 4;
 }
 #a57-legend b { color: var(--tc, var(--paper)); font-weight: 600; }
+/* --- speech bubbles: a RESERVED band across the top of the board -------- */
+/* Rows [0, 2) of the 35-tile board, above BOTH top quadrants. A bubble is
+   never positioned relative to an avatar (cogchemists, 2026-08-24) and can
+   never cover play: the band is a fixed slice of the board's own height, it
+   clips its own overflow, and each bubble ellipsises inside its third of the
+   width, so a full-cap 48-rune `say` has nowhere to spill. */
+#a57-bubbles {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--topband, 0px);
+  height: calc((100% - var(--topband, 0px) - var(--band, 0px)) * 2 / 35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4 * var(--u));
+  padding: 0 calc(4 * var(--u));
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+#a57-bubbles .a57-bubble {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 32%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--finefont);
+  font-size: calc(7 * var(--u));
+  letter-spacing: 0.04em;
+  padding: calc(1 * var(--u)) calc(4 * var(--u));
+  background: rgba(12, 9, 6, 0.72);
+  color: var(--paper);
+}
+#a57-bubbles .a57-bubble b { font-weight: 600; }
 /* --- scrubber beats: one rule per kind the sim emits -------------------- */
 button.beat-marker {
   -webkit-appearance: none;
@@ -2669,6 +2705,7 @@ button.beat-marker:focus-visible { outline: 1px solid var(--amber); }
 #stage.tiny .plate .a57-pts { display: none; }
 #stage.tiny .plate .scrchip { min-width: 0; font-size: calc(9 * var(--u)); }
 #stage.tiny #a57-legend { display: none; }
+#stage.tiny #a57-bubbles { display: none; }
 @media (max-width: 640px) {
   .plate .lives-label { display: none; }
   .plate .a57-pts { display: none; }
@@ -2840,6 +2877,17 @@ button.beat-marker:focus-visible { outline: 1px solid var(--amber); }
     return el;
   }
 
+  function a57EnsureBubbles() {
+    if (a57El('a57-bubbles')) return a57El('a57-bubbles');
+    var chrome = a57El('chrome');
+    if (!chrome) return null;
+    var el = document.createElement('div');
+    el.id = 'a57-bubbles';
+    el.setAttribute('aria-live', 'off');
+    chrome.appendChild(el);
+    return el;
+  }
+
   function a57Frame(s, ctx, jumped) {
     CTX = ctx;
     if (jumped) { a57Placed = {}; a57SeenStance = {}; }
@@ -2873,6 +2921,26 @@ button.beat-marker:focus-visible { outline: 1px solid var(--amber); }
       }
       var html = parts.join('');
       if (legend.innerHTML !== html) legend.innerHTML = html;
+    }
+    // The speech-bubble band: what a lane SAID, in a reserved strip across the
+    // top of the board (rows [0, 2) of 35) rather than over an avatar. The sim
+    // owns both the 2.5 s life and the cap of three (src/lane/broadcast.nim),
+    // so this only paints whatever is live on THIS frame — which makes a seek
+    // land on exactly the bubbles the recorded tick had.
+    var band = a57EnsureBubbles();
+    if (band) {
+      var bubbles = a57.bubbles || [];
+      var lanes2 = a57.lanes || [];
+      var speech = '';
+      for (var q = 0; q < bubbles.length; q++) {
+        var bub = bubbles[q];
+        var ln2 = lanes2[bub.lane] || {};
+        var col = CTX.teamCol(ln2.team) || '#f2e8d8';
+        speech += '<span class="a57-bubble" style="color:' + col + '">' +
+          '<b>' + CTX.esc(String(ln2.alias || '')) + '</b> \u201c' +
+          CTX.esc(String(bub.say || '')) + '\u201d</span>';
+      }
+      if (band.innerHTML !== speech) band.innerHTML = speech;
     }
     a57Stances(s);
     // The up-front beat timeline (shipped ONCE by the server) places every

@@ -261,12 +261,29 @@ proc buildStateJson*(
   for seat in 0 ..< 4:
     lanesJson.add(laneBoardJson(sim, seat))
 
-  var bubbles = newJArray()
+  # The board's speech-bubble band holds at most THREE at a time: the three
+  # lanes whose `say` was set most recently (`seatSayUntil` is `set + 2.5 s`,
+  # so the largest deadline is the newest line). A fourth would either shrink
+  # the band's share below legibility or push a bubble out of the reserved
+  # strip, which is the one thing the band exists to prevent.
+  var live: seq[int] = @[]
   for seat in 0 ..< 4:
     if sim.seatSay[seat].len > 0 and sim.seatSayUntil[seat] > sim.tickCount:
-      bubbles.add(%*{
-        "lane": seat, "say": sim.seatSay[seat],
-        "until": sim.seatSayUntil[seat]})
+      live.add(seat)
+  # Newest first: `seatSayUntil` is the tick the line expires, so the largest
+  # deadline is the most recently set line. A strict `>` keeps the insertion
+  # stable, so two lines set on the same tick stay in lane order.
+  for i in 1 ..< live.len:
+    var j = i
+    while j > 0 and sim.seatSayUntil[live[j]] > sim.seatSayUntil[live[j - 1]]:
+      swap(live[j], live[j - 1])
+      dec j
+  var bubbles = newJArray()
+  for k in 0 ..< min(3, live.len):
+    let seat = live[k]
+    bubbles.add(%*{
+      "lane": seat, "say": sim.seatSay[seat],
+      "until": sim.seatSayUntil[seat]})
 
   var state = %*{
     "t": sim.tickCount,
