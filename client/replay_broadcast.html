@@ -98,8 +98,9 @@ html, body {
   height: calc(100% - var(--topband, 0px) - var(--band, 0px));
   display: block;
   image-rendering: pixelated;
-  /* The board never zooms (see the zoom/pan removal below #viewpanel), so it is
-     always fitted whole and one-finger drags always belong to the PAGE — the
+  /* The board never zooms (the zoom bar, the minimap and every handler that
+     drove them are removed — see the banner at the end of this file), so it is
+     always fitted whole and one-finger drags always belong to the PAGE: the
      board must never trap a scroll past it. */
   touch-action: pan-x pan-y;
 }
@@ -1556,8 +1557,9 @@ body[data-embed] #board { top: 0; height: 100%; }
     onText: function (txt) { onFrame(txt); },
     onStatus: function (st) { onStatus(st); },
     onFirstFrame: function () { core.setViewportFit(); },
-    // Nothing drives the view: #viewpanel and the zoom/pan handlers are gone,
-    // so the core stays fitted and there is no control to keep in sync.
+    // Nothing drives the view: the zoom bar, the minimap and every zoom/pan
+    // handler are removed, so the core stays fitted and there is no control
+    // left to keep in sync.
     onTransform: function () { }
   };
   var core = replayAdapter
@@ -2376,7 +2378,7 @@ body[data-embed] #board { top: 0; height: 100%; }
     else if (k === 'o') setSpoilers(!getSpoilers());
     // No view keys. The board is a fixed 1400x1400 square that is always
     // letterboxed whole into the frame, so the starter's z/x/0 zoom and its
-    // arrow-key pan were removed along with #viewpanel.
+    // arrow-key pan were removed along with the zoom bar they drove.
     else if (k >= '1' && k <= '9') send(k);
     // keydown never crosses the iframe boundary: relay Esc to the league
     // shell, which relays it on to the Observatory theater host.
@@ -2392,7 +2394,7 @@ body[data-embed] #board { top: 0; height: 100%; }
   // ---- no zoom, no pan ---------------------------------------------------
   // The starter's zoom + pan block (mouse wheel, Safari gesture events, touch
   // pinch, drag-to-pan, dblclick-to-refit and the touch-action sync that went
-  // with them) is REMOVED with #viewpanel: this board is a fixed 1400x1400
+  // with them) is REMOVED with the zoom bar: this board is a fixed 1400x1400
   // square that is always letterboxed whole into the frame, so there is
   // nowhere to pan to, and with the zoom bar gone there would be no visible
   // control to get back out with. broadcast_core.js keeps its zoom/pan
