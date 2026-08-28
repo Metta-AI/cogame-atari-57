@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>atari-57 — worst-case text fixture</title>
+<!--
+  THE WORST-CASE TEXT GATE.
+
+  tools/ci/docker_smoke.sh runs with no ANTHROPIC_API_KEY, so every seat in
+  every replay CI produces plays the scripted baseline, and a scripted
+  baseline emits only its five fixed `say` strings. Nothing that plays that
+  replay can draw the chrome this game's LLM path owns — the stance chips, the
+  policy notes in the feed at full cap, or the NEW RECORD banner. So this
+  fixture exists (cogchemists, 2026-08-24).
+
+  It LOADS THE REAL SHIPPED BUNDLE — dist/static-replay-viewer/index.html, in
+  an iframe — and shims only the FRAME SOURCE (`window.__a57TestFrame`, the
+  page's own onFrame). It does NOT re-implement the drawing: a fixture that
+  re-implements it stops being evidence about the shipped page
+  (particle-worlds 46cf69d, 2026-08-26).
+
+  It then TRANSCRIBES the page's visible DOM text runs into a canvas at their
+  MEASURED geometry, so `viewer_smoke.mjs --strict-text-bounds` — which hooks
+  CanvasRenderingContext2D.fillText — sees exactly the strings the shipped
+  chrome laid out, at exactly where it laid them out. A caption anchored where
+  there is no room shows up as `canvas_text.never_inside`.
+
+  Three widths are exercised: 360 px (the embedded featured-match iframe),
+  620 px (the `.tiny` boundary) and 1280 px.
+-->
+<style>
+  html, body { margin: 0; background: #0c0906; color: #f2e8d8;
+               font-family: ui-monospace, monospace; }
+  #frame { display: block; border: 0; background: #0c0906; }
+  #probe { position: fixed; right: 0; bottom: 0; }
+  #log { position: fixed; left: 0; bottom: 0; font-size: 11px;
+         white-space: pre; padding: 4px; pointer-events: none; }
+</style>
+<body>
+<iframe id="frame" src="./index.html?embed=1" width="1280" height="720"></iframe>
+<canvas id="probe" width="1280" height="720"></canvas>
+<div id="log"></div>
+<script>
+(function () {
+  'use strict';
+
+  // Full-cap strings, exactly at the server's own rune caps: 160 for a
+  // stance `note`, 48 for a `say`. If either of these is longer than the cap
+  // the fixture fails ITSELF, so the fixture can never silently drift below
+  // the worst case it exists to draw.
+  var NOTE = 'power pellet 62 ticks away in sw and nothing is chasing me ' +
+    'there so take it now, cash the full chain, then swing back east for ' +
+    'the last cluster before';
+  var SAY = 'going for the power then cashing every hunter';
+  var TEAMS = ['red', 'blue', 'green', 'yellow'];
+  var ALIASES = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
+  var NAMES = ['atari-57-highroller', 'atari-57-onecredit',
+               'atari-57-arcader', 'atari-57-hoover'];
+  var MODES = ['strike', 'hunt', 'bank', 'clear'];
+  var ZONES = ['sw', 'ne', 'none', 'centre'];
+  var WIDTHS = [360, 620, 1280];
+
+  var logEl = document.getElementById('log');
+  var failures = [];
+  function log(line) { logEl.textContent += line + '\n'; }
+  function fail(line) { failures.push(line); log('FAIL ' + line); }
+
+  function runes(text) { return Array.from(String(text)).length; }
+
+  if (runes(NOTE) > 160) fail('fixture note is ' + runes(NOTE) + ' runes (cap 160)');
+  if (runes(SAY) > 48) fail('fixture say is ' + runes(SAY) + ' runes (cap 48)');
+  if (runes(NOTE) < 150) fail('fixture note is not near the 160-rune cap');
+  if (runes(SAY) < 40) fail('fixture say is not near the 48-rune cap');
+
+  function stateAt(tick, over) {
+    var teams = {};
+    var roster = [];
+    var lanes = [];
+    var stances = [];
+    for (var i = 0; i < 4; i++) {
+      teams[TEAMS[i]] = {
+        score: 44.1 - i * 7.25, points: 4210 - i * 700, lives: 3 - i,
+        livesPerLane: 3, screen: 2 - (i > 1 ? 1 : 0),
+        record: i === 0, over: over && i === 3,
+        policies: [NAMES[i]], mode: MODES[i], zone: ZONES[i],
+        placement: i + 1
+      };
+      roster.push({
+        s: i, name: NAMES[i], pol: NAMES[i], team: TEAMS[i], alias: ALIASES[i],
+        lane: i, kind: i < 2 ? 'llm' : 'scripted', points: 4210 - i * 700,
+        score: 44.1 - i * 7.25, lives: 3 - i, alive: !(over && i === 3),
+        screen: 2, deaths: i, bestChain: 4 - i, screensCleared: 2 - i,
+        record: i === 0, llmTurns: i < 2 ? 24 : 0, fallbackTurns: i < 2 ? 1 : 0
+      });
+      lanes.push({
+        s: i, team: TEAMS[i], alias: ALIASES[i], state: 'running',
+        avatar: { x: 8.5, y: 12, facing: 'right' },
+        tiles: '', sprites: [], power: 0, chain: 0,
+        points: 4210 - i * 700, lives: 3 - i, screen: 2,
+        mode: MODES[i], zone: ZONES[i]
+      });
+      stances.push({
+        k: 'stance', turn: tick, seat: i, alias: ALIASES[i], lane: i,
+        source: i < 2 ? 'llm' : 'scripted', latency_ms: 3200 + i,
+        note: NOTE, mode: MODES[i], zone: ZONES[i], risk: 0.55,
+        lead_ticks: 16, fire: 'auto', say: SAY
+      });
+    }
+    var events = [
+      { k: 'say', t: tick, lane: 0, team: 'red', alias: 'RED',
+        mode: 'strike', zone: 'sw', source: 'llm', note: NOTE, say: SAY },
+      { k: 'record', t: tick, lane: 0, team: 'red', points: 2610, par: 2600 },
+      { k: 'screen_clear', t: tick, lane: 1, team: 'blue', screen: 2, bonus: 500 },
+      { k: 'life_lost', t: tick, lane: 2, team: 'green', livesLeft: 1 },
+      { k: 'lane_over', t: tick, lane: 3, team: 'yellow', points: 2465 }
+    ];
+    var state = {
+      t: tick, mt: 2880, ph: over ? 'gameover' : 'playing', lob: 0, pl: true,
+      sp: 1, mx: 2880, st: 0, lp: true, sk: false, ff: false, en: true,
+      mm: -1, bs: 2, pov: -1, teams: teams, roster: roster, events: events,
+      turn: 11, turns: 24, turnTicks: 120,
+      a57: { rom: 'chomper', par: 2600, grid: [17, 17], livesPerLane: 3,
+             lanes: lanes, bubbles: [{ lane: 0, say: SAY, until: tick + 60 }] },
+      stances: stances,
+      beats: [
+        { k: 'life_lost', t: 432, lane: 2, team: 'green' },
+        { k: 'screen_clear', t: 968, lane: 1, team: 'blue' },
+        { k: 'record', t: 1284, lane: 0, team: 'red', par: 2600 },
+        { k: 'lane_over', t: 1902, lane: 3, team: 'yellow' },
+        { k: 'over', t: 2880 }
+      ],
+      lulls: [[1512, 1670]]
+    };
+    if (over) {
+      var overTeams = {};
+      for (var j = 0; j < 4; j++) {
+        overTeams[TEAMS[j]] = {
+          placement: j + 1, score: 44.1 - j * 7.25, points: 4210 - j * 700,
+          lives: 3 - j, screens: 2 - j, deaths: j, bestChain: 4 - j,
+          record: j === 0, llmTurns: j < 2 ? 24 : 0,
+          fallbackTurns: j < 2 ? 1 : 0, name: NAMES[j]
+        };
+      }
+      state.over = {
+        winner: 'red', draw: false, timeLimit: true, endRule: 'full_time',
+        reason: 'complete', ticks: 2880, rom: 'chomper', par: 2600,
+        teams: overTeams
+      };
+      state.hold = 7;
+    }
+    return state;
+  }
+
+  // Transcribe the shipped page's VISIBLE DOM text into our own canvas at the
+  // geometry the shipped page laid it out with. --strict-text-bounds hooks
+  // fillText, so this is what makes a caption with nowhere to go visible to CI.
+  function transcribe(doc, width, height) {
+    var canvas = document.getElementById('probe');
+    canvas.width = width;
+    canvas.height = height;
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+    var drawn = 0;
+    var nodes = doc.querySelectorAll(
+      '.plate-name, .lives-num, .lives-label, .a57-pts, .scrchip, .recpip, ' +
+      '#clock-time, #clock-caption, #a57-rom, #a57-legend, #a57-legend span, ' +
+      '.feed-row, .banner-chip, .beat-marker, #ec-headline, #ec-how, ' +
+      '#ec-wincond, .ec-tname, .ec-row, .fl-num, .fl-cap, #status, #tick-clock');
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var text = (node.textContent || '').trim();
+      if (!text) continue;
+      var box = node.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) continue;
+      var style = doc.defaultView.getComputedStyle(node);
+      var size = parseFloat(style.fontSize) || 12;
+      ctx.font = size + 'px ' + (style.fontFamily || 'monospace');
+      ctx.fillStyle = '#f2e8d8';
+      ctx.textBaseline = 'top';
+      // Draw at the element's MEASURED geometry: scale the face so the run
+      // occupies exactly the box the shipped page gave it. A string that the
+      // page laid out inside its box is inside the canvas here too; a caption
+      // anchored where there is no room is outside here exactly as it is on
+      // screen. Faking the width would make this gate say nothing.
+      var natural = ctx.measureText(text).width;
+      if (natural > box.width && natural > 0) {
+        ctx.font = Math.max(1, size * (box.width / natural)) + 'px ' +
+          (style.fontFamily || 'monospace');
+      }
+      ctx.fillText(text, box.left, box.top);
+      drawn += 1;
+      // A run whose own box is clipped by its container is a defect the
+      // canvas cannot see, so it is asserted directly.
+      if (node.scrollWidth > node.clientWidth + 2 &&
+          style.textOverflow !== 'ellipsis' &&
+          style.overflowX !== 'auto' && style.overflowX !== 'scroll') {
+        fail('clipped run: "' + text.slice(0, 40) + '" (' +
+          node.scrollWidth + ' > ' + node.clientWidth + ')');
+      }
+    }
+    // The title the fixture itself is responsible for: the label an aria
+    // reader would get off a scrubber beat, drawn at the beat's own x.
+    var beats = doc.querySelectorAll('.beat-marker');
+    for (var b = 0; b < beats.length; b++) {
+      var label = beats[b].getAttribute('aria-label') || '';
+      if (!label) continue;
+      var bb = beats[b].getBoundingClientRect();
+      ctx.font = '10px monospace';
+      var labelW = ctx.measureText(label).width;
+      ctx.fillText(label, Math.max(0, Math.min(bb.left, width - labelW)),
+                   Math.max(0, bb.top - 12));
+      drawn += 1;
+    }
+    return drawn;
+  }
+
+  function finish() {
+    if (failures.length) {
+      document.documentElement.setAttribute(
+        'data-replay-error', failures.join('; '));
+      return;
+    }
+    document.documentElement.setAttribute('data-replay-loaded', 'true');
+  }
+
+  var frame = document.getElementById('frame');
+  frame.addEventListener('load', function () {
+    var win = frame.contentWindow;
+    var waited = 0;
+    (function ready() {
+      if (!win.__a57TestFrame) {
+        waited += 100;
+        if (waited > 20000) {
+          fail('the shipped page never exposed its frame hook');
+          finish();
+          return;
+        }
+        setTimeout(ready, 100);
+        return;
+      }
+      var step = 0;
+      (function drive() {
+        if (step >= WIDTHS.length) {
+          // One last frame at game over so the endcard's own text is laid out
+          // and transcribed too.
+          win.__a57TestFrame(JSON.stringify(stateAt(2880, true)));
+          setTimeout(function () {
+            var n = transcribe(frame.contentDocument, frame.clientWidth, frame.clientHeight);
+            log('endcard: transcribed ' + n + ' runs');
+            if (n < 4) fail('the endcard laid out almost no text');
+            finish();
+          }, 300);
+          return;
+        }
+        var width = WIDTHS[step];
+        step += 1;
+        frame.width = String(width);
+        frame.height = String(Math.round(width * 0.62));
+        setTimeout(function () {
+          var tick = 1200 + step * 120;
+          win.__a57TestFrame(JSON.stringify(stateAt(tick, false)));
+          setTimeout(function () {
+            var doc = frame.contentDocument;
+            var n = transcribe(doc, frame.clientWidth, frame.clientHeight);
+            log(width + 'px: transcribed ' + n + ' runs');
+            if (n < 6) fail('only ' + n + ' text runs at ' + width + 'px');
+            // The plate captions must never collapse to a bare ellipsis.
+            var plates = doc.querySelectorAll('.plate-name');
+            for (var i = 0; i < plates.length; i++) {
+              var t = (plates[i].textContent || '').trim();
+              if (t === '' || t === '\u2026') {
+                fail('a plate name collapsed at ' + width + 'px');
+              }
+            }
+            drive();
+          }, 260);
+        }, 120);
+      })();
+    })();
+  });
+})();
+</script>
+</body>
+</html>

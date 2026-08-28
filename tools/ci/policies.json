@@ -1,0 +1,35 @@
+[
+  {
+    "name": "atari-57-highroller",
+    "run": "/bin/atari-57-player",
+    "env": {
+      "PLAYER_PROMPT": "Points compound and lives do not. One life is worth exactly 100 points, and a\ncleared screen is worth 300-500 plus everything on it - so the run that clears\nscreens beats the run that survives. Push, but never push into a coin flip.\nRules, in order.\n1. Read \"threats\" first. If ANY threat's eta_ticks is under 20, mode \"safe\",\n   risk 0.15, lead_ticks 8, zone \"none\". Survive the next second and re-decide.\n   Nothing on the board is worth a life at 20 ticks.\n2. Otherwise, if a power pellet is listed in \"targets\" and its dist_ticks is\n   under 60, mode \"hunt\", zone = the zone that power pellet is in, risk 0.55,\n   lead_ticks 16. In CHOMPER the power pellet is not 50 points, it is 750: the\n   pellet plus a full 100/150/200/250 chain.\n3. Immediately after eating one - \"power_ticks_left\" above 60 - mode \"strike\",\n   risk 0.85, lead_ticks 10, zone \"none\". The chain is the single largest number\n   on this cabinet. Take it.\n4. In BRICKFALL, if \"bricks_left_by_row\" still shows the top row, mode \"hunt\"\n   with zone \"top\": the 50s are five times the 10s and they open the tunnel that\n   clears the wall for you.\n5. In GALLERY, fire \"auto\" always, mode \"hunt\", zone = the flank with the most\n   live marchers; switch to zone \"top\" whenever the saucer is listed.\n6. Otherwise mode \"clear\", risk 0.5, lead_ticks 14, zone \"none\".\n7. On your LAST life, halve every risk you would otherwise set and never set it\n   above 0.35. A frozen counter scores nothing for the remaining minute.\nNever set risk above 0.9. Never set lead_ticks above 24 - a long commitment in a\ngame where the threats move is how you die.",
+      "PLAYER_POLICY_LABEL": "highroller"
+    }
+  },
+  {
+    "name": "atari-57-onecredit",
+    "run": "/bin/atari-57-player",
+    "env": {
+      "PLAYER_PROMPT": "Three lives is three lives. The board is decided in the last thirty seconds, and\nthe cog that is still alive at 1:30 with two lives can spend them all in one\nglorious minute. Survive first, cash late.\nRead \"clock.left_s\" and \"scoreboard\" every turn before anything else.\n1. While left_s is above 45: mode \"bank\" whenever any threat's eta_ticks is under\n   45, otherwise mode \"clear\". risk = 0.25, lead_ticks 12, zone \"none\". You are\n   farming, not gambling. Do not chase a power pellet across the maze in this\n   window and do not chase the saucer.\n2. While left_s is between 45 and 20: mode \"clear\", risk 0.5, zone = whichever\n   zone \"targets\" says holds the most points. Start spending.\n3. While left_s is under 20: mode \"strike\", risk 1.0, lead_ticks 6, fire \"auto\",\n   zone \"none\". Lives are worth 1.0 each and you are about to lose them for free\n   anyway. Empty the credit.\n4. Override, any time: if you are more than 6.0 score BEHIND the leader in\n   \"scoreboard\" and left_s is under 60, jump straight to rule 3's settings. A\n   safe second place scores the same as a reckless second place.\n5. Override, any time: if you are the LEADER and left_s is under 30, mode \"safe\",\n   risk 0.1. Do not hand back a won board for 200 points.\n6. In BRICKFALL never set risk below 0.3 - the paddle cannot die by moving, only\n   by being late, and a timid paddle is a late paddle.\nNever set lead_ticks above 20. Never set mode \"hunt\" while on your last life.",
+      "PLAYER_POLICY_LABEL": "onecredit"
+    },
+    "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
+  },
+  {
+    "name": "atari-57-arcader",
+    "run": "/bin/atari-57-player",
+    "env": {
+      "PLAYER_SCRIPTED": "arcader",
+      "PLAYER_POLICY_LABEL": "arcader"
+    }
+  },
+  {
+    "name": "atari-57-hoover",
+    "run": "/bin/atari-57-player",
+    "env": {
+      "PLAYER_SCRIPTED": "hoover",
+      "PLAYER_POLICY_LABEL": "hoover"
+    }
+  }
+]

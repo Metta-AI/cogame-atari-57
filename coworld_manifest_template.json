@@ -1,0 +1,756 @@
+{
+  "$schema": "https://softmax.com/schemas/coworld-manifest.json",
+  "episode_timeout_minutes": 20,
+  "tags": [
+    "arcade",
+    "score-attack",
+    "single-player",
+    "real-time",
+    "llm"
+  ],
+  "game": {
+    "name": "atari-57",
+    "description": "Four cogs play the same arcade cartridge from the same seed on four sealed screens at once — pellets, bricks or invaders — and the highest score when the credit runs out takes the board.",
+    "owner": "daveey",
+    "runnable": {
+      "type": "game",
+      "image": "{{ATARI_57_IMAGE}}",
+      "run": [
+        "/bin/atari-57"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/atari-57/anthropic_api_key"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-atari-57/tree/main"
+    },
+    "replay_viewer": {
+      "bundle": "static-replay-viewer"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "players": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "token": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "alias": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "closedRoster": {
+          "type": "boolean",
+          "default": false
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "num_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 4
+        },
+        "minPlayers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 4
+        },
+        "maxTicks": {
+          "type": "integer",
+          "minimum": 120,
+          "maximum": 20000,
+          "default": 2880
+        },
+        "minTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20000,
+          "default": 1440
+        },
+        "maxGames": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 1
+        },
+        "turnTicks": {
+          "type": "integer",
+          "minimum": 12,
+          "maximum": 600,
+          "default": 120
+        },
+        "turnBudgetMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000,
+          "default": 16000
+        },
+        "attempt1Ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000,
+          "default": 9000
+        },
+        "retryMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000,
+          "default": 5000
+        },
+        "turnSpacingMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000,
+          "default": 12000
+        },
+        "wallClockBudgetSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 720,
+          "default": 660
+        },
+        "lobbyJoinTimeoutTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20000,
+          "default": 2880
+        },
+        "startWaitTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000,
+          "default": 48
+        },
+        "gameOverTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000,
+          "default": 96
+        },
+        "fastMode": {
+          "type": "boolean",
+          "default": true
+        },
+        "showPlayerLabels": {
+          "type": "boolean",
+          "default": false
+        },
+        "speed": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 1
+        },
+        "model": {
+          "type": "string",
+          "default": ""
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 4096,
+          "default": 900
+        },
+        "rom": {
+          "type": "string",
+          "enum": [
+            "chomper",
+            "brickfall",
+            "gallery"
+          ],
+          "default": "chomper"
+        },
+        "livesPerLane": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "default": 3
+        },
+        "parScore": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 20000,
+          "default": 2600
+        },
+        "avatarSpeedMilli": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 4000,
+          "default": 1500
+        },
+        "latchTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24,
+          "default": 6
+        },
+        "powerTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 480,
+          "default": 144
+        },
+        "screenClearBonus": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000,
+          "default": 500
+        },
+        "rampPermille": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 1500,
+          "default": 1060
+        },
+        "fireEnabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "brakeEnabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "marchTicks0": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 60,
+          "default": 20
+        },
+        "fireChancePermille": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 18
+        },
+        "ballSpeedMaxMilli": {
+          "type": "integer",
+          "minimum": 2000,
+          "maximum": 6000,
+          "default": 3920
+        }
+      }
+    },
+    "results_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "names",
+        "scores",
+        "win",
+        "placements",
+        "rom",
+        "points",
+        "reason",
+        "endRule"
+      ],
+      "properties": {
+        "names": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string"
+          }
+        },
+        "aliases": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string"
+          }
+        },
+        "lanes": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "policyKinds": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "scripted"
+            ]
+          }
+        },
+        "scores": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number"
+          }
+        },
+        "win": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "placements": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          }
+        },
+        "rom": {
+          "type": "string",
+          "enum": [
+            "chomper",
+            "brickfall",
+            "gallery"
+          ]
+        },
+        "parScore": {
+          "type": "integer"
+        },
+        "points": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "livesLeft": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "deaths": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "screensCleared": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "bestChain": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "shotsFired": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "records": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "lastScoreTick": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "ticksAlive": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "llmTurns": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "fallbackTurns": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "finalTick": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "deadline",
+            "fault"
+          ]
+        },
+        "endRule": {
+          "type": "string",
+          "enum": [
+            "all_lanes_over",
+            "full_time",
+            "wall_clock",
+            "sim_fault",
+            "host_error"
+          ]
+        },
+        "seed": {
+          "type": "integer"
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "THE PLAYER SOCKET (ws://<game>/player?slot=N&token=T)\n\nA seat sends exactly ONE message that matters and then only receives.\n\n1. REGISTRATION. One Sprite v1 chat frame (0x81), a JSON object:\n     {\"type\":\"register\",\"prompt\":\"<strategy text or empty>\",\n      \"scripted\":\"arcader\"|\"hoover\"|null,\"policy\":\"<free label>\"}\n   `prompt` non-empty makes the seat an LLM seat; `scripted` names a published\n   baseline; a seat that sets neither is `arcader`, and the server LOGS THAT\n   LOUDLY. The registration is re-sent for the first ~10 s of frames because a\n   seat's slot may not be admissible yet; the server holds an unappliable\n   registration rather than dropping it. `prompt` is capped at 4000 runes at\n   the transport (truncated, never rejected) and is NEVER written to the\n   replay or the results.\n\n2. FRAMES. One binary Sprite v1 message per tick carrying THIS SEAT'S LANE\n   ONLY: its whole 17x17 screen, every tile, every sprite, its avatar, its\n   lives and its points. The other three quadrants are not in a player frame\n   at all. Board labels carry only the colour aliases RED / BLUE / GREEN /\n   YELLOW; `showPlayerLabels` is forced false on this stream.\n\n3. READY. The seat replies with the Sprite v1 ready packet (0x85) after each\n   received frame. SEATS SEND NO INPUTS: every action byte is computed\n   server-side by the autopilot, so an input mask arriving on a player socket\n   is discarded.\n\nTHE DECISION. Every 120 ticks (5.0 s) the GAME server composes this seat's\nboard view and asks the seat's policy for one STANCE. The view is the seat's\nown screen as a 17-line ASCII map plus structured `threats`, `targets`,\n`zones`, its own counters, and a four-row SCOREBOARD strip carrying every\nrival's {alias, score, lives, screen} and nothing else. The reply is:\n\n  {\"note\":\"<=160 runes\",\"mode\":\"clear|hunt|strike|safe|bank\",\n   \"zone\":\"nw|ne|sw|se|centre|left|right|top|bottom|none\",\n   \"risk\":0.0..1.0,\"lead_ticks\":0..48,\n   \"fire\":\"auto|hold|never\",\"say\":\"<=48 runes\"}\n\nParsing is tolerant (markdown fences, prose prefixes, percentages, synonyms);\nevery field is repaired rather than rejected; two consecutive failures fall\nback to the published `arcader` stance and write a `fallback` record."
+      },
+      "global": {
+        "type": "text",
+        "value": "THE SPECTATOR SOCKET (ws://<game>/global) AND THE REPLAY BYTES\n\n/global carries the same Sprite v1 board every viewer draws — the 2x2\nquad-split of four 17x17 screens on one 1400x1400 board — plus ONE reserved\nnever-drawn 1x1 sprite (id 4090) whose LABEL is the whole JSON chrome frame.\nThat frame carries: `t`/`mt`/`ph`/`sp`/`mx`/`st`/`en` (the transport), `teams`\nkeyed red/blue/green/yellow with each lane's score, points, lives,\nlivesPerLane, screen, record flag and over flag, `roster` (the REAL policy\nnames — spectator side only), `events`, `a57` (the rom, the par, and each\nlane's tiles, sprites, avatar and standing stance), `stances`, `lead` (the\nmomentum series), `beats`, `lulls` and, at game over, `over`.\n\nTHE REPLAY is the starter's binary COWLDA57 format and is SELF-SUFFICIENT:\n\n  header      magic COWLDA57, format version, gameName atari-57, gameVersion 1\n  config JSON seed, rom, the FULLY RESOLVED cartridge preset, the loaded map's\n              17 rows verbatim and its sha256, the whole geometry table, the\n              point tables, the scoring constants, the real player names and\n              the in-game aliases\n  joins       one per seat\n  inputs      THE ACTION LOG: one action byte per seat per tick, written on\n              change only. dir = cmd mod 5 (0 stay, 1 up, 2 down, 3 left,\n              4 right); act = cmd div 5 (0 none, 1 fire, 2 brake); cmd >= 15\n              is repaired to 0 identically on both sides\n  chats       register / stance / fallback / budget_guard / stopped / result\n  hashes      one gameHash per tick — the integrity chain the wasm viewer\n              re-checks against its own re-simulation, every tick\n\nThe viewer is a STATIC wasm bundle (`replay_viewer.bundle =\nstatic-replay-viewer`): it re-runs the same sim module the server ran from the\nrecorded action bytes and contacts no server but S3. `tools/replay_summary.py`\n(Python 3 stdlib only) prints one strict-UTF-8 JSON object from a replay\nfile."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# cogame-atari-57 — the league cabinet\n\n**Four lanes. One cartridge. One credit. Two minutes.**\n\nFour cogs sit at four cabinets running the **same game, from the same seed, at\nthe same moment**, each on its own private **17 × 17 tile screen**. Nobody can\ntouch anybody. There is no defence, no interference and no trade: there is only\n*how good is your agent at this game*. When the clock runs out the highest score\ntakes the board.\n\nWhich cartridge is loaded — **`chomper`** (maze-chomp), **`brickfall`**\n(brick-breaking) or **`gallery`** (shooter gallery) — is a manifest variant,\nannounced before the round, stamped into the replay and printed on the\nscorebug.\n\n```\nSCORE = points / 100 + lives you still have\n```\n\nBoth terms are non-negative, so the minimum is `0.000`, higher is always better,\nand nothing is ever subtracted. Dying is punished by *not keeping* the lives\nterm rather than by a negative number — which is what keeps the whole scale\nreadable on a scorebug.\n\n## A policy is just a prompt\n\nEvery 5 seconds (120 ticks) each seat sets one **stance**; a deterministic\nautopilot runs it 24 times a second, doing the pathfinding, the dodging, the\naiming and the firing. You choose **what to go for** and **how much risk to\ntake**:\n\n```json\n{\"note\": \"power pellet 62 ticks away in sw and nothing is chasing me there\",\n \"mode\": \"hunt\", \"zone\": \"sw\", \"risk\": 0.55, \"lead_ticks\": 16,\n \"fire\": \"auto\", \"say\": \"going for the power\"}\n```\n\n`mode` is one of `clear` (take the nearest scoring thing), `hunt` (go for the\nhighest-value thing reachable), `strike` (cash in — the chain, the top brick\nrows, the densest flank), `safe` (keep your distance and still score) and `bank`\n(refuse every trade; you will score slowly and you will not die).\n\nShip your own by reusing this image and setting `PLAYER_PROMPT`:\n\n```bash\ncoworld upload-policy coworld-atari-57:latest --name my-atari-57 \\\n  --run /bin/atari-57-player --secret-env PLAYER_PROMPT=\"<your strategy>\"\n```\n\nTwo scripted baselines ship in the same image, selected with\n`PLAYER_SCRIPTED`: **`arcader`** (the certification player, the per-turn\nfallback and the default — it clears screens and cashes chains) and\n**`hoover`** (deliberately weaker: it never dodges).\n\n## What a seat can see\n\nIts **own whole screen** — every tile, every sprite, its avatar, its lives, its\npoints — as a 17-line ASCII map plus structured `threats`, `targets` and\n`zones`, and a four-row **scoreboard** carrying every rival's\n`{alias, score, lives, screen}` **and nothing else**. No other lane's board,\nsprites, stance or policy is visible to anybody, ever. In game a seat is\n`RED`, `BLUE`, `GREEN` or `YELLOW` and nothing else; real policy names live\nspectator-side only, in the replay config, the scorebug roster and the endcard.\n\n## The replay\n\nThe replay is the starter's binary `COWLDA57` action log plus a per-tick\n`gameHash` chain. The viewer is a **static wasm bundle** that re-runs the very\nsame `src/lane/sim.nim` the server ran, from the recorded action bytes, and\nchecks its own hash against the recorded one **every tick** — one divergent bit\nis caught at the tick it happens. No pod, no server, no live connection but S3.\n\n## Layout\n\n| path | what |\n|---|---|\n| `src/atari57.nim` | the cabinet entrypoint (`/bin/atari-57`) |\n| `src/atari57_player.nim` | the thin seat registrar (`/bin/atari-57-player`) |\n| `src/lane/sim.nim` | the four-lane container, the tick loop and `stepLane` |\n| `src/lane/{grid,maps,rom,sprites}.nim` | the tile lattice, the three committed maps, the cartridge presets, the sprite behaviours and the `BallFan` table |\n| `src/lane/{stances,control,baselines}.nim` | the reply schema, the autopilot, the two published baselines |\n| `src/lane/{observation,decide,llm}.nim` | the board view, the per-turn parallel batch, the Bedrock/Anthropic transport |\n| `src/lane/{server,global,broadcast,replays,replay_runtime}.nim` | the mummy server, the board render, the chrome frame, the replay codec and the shared replay runtime |\n| `replay-viewer/atari57_replay.nim` | the wasm entry — the same sim module, re-simulating in the browser |\n| `client/` | the broadcast chrome (`chrome_common.js` is byte-identical to the starter's) |\n| `docs/RULES.md` | every number in the game |\n| `docs/PROTOCOL.md` | the wire protocol |\n| `docs/STANCES.md` | how to write a stance |\n\nNim module names may not contain `-`, so the sources are `atari57*` while the\nbinaries are `/bin/atari-57` and `/bin/atari-57-player`, which is what every\nmanifest, compose and slug string says.\n\n## Building and testing\n\nThe whole toolchain lives in CI (`.github/workflows/ci.yml`): the Nim tests run\nin **both debug and release**, `docker-smoke` plays a real episode in raw\nDocker from the certification fixture, and `wasm-viewer` builds the static\nbundle and **opens it in headless chromium** against the replay that episode\nproduced.\n\n```bash\nnimby --global sync nimby.lock          # dependencies\nnim r --path:src tests/test_determinism.nim\n./tools/ci/docker_smoke.sh coworld-atari-57:ci\n./tools/build_replay_viewer.sh \"$PWD/dist/static-replay-viewer\"\n```\n\nForked from [`Metta-AI/coworld-ctf`](https://github.com/Metta-AI/coworld-ctf)\n(paintbot). Design note: [`docs/plans/2026-08-28-atari-57-design.md`](docs/plans/2026-08-28-atari-57-design.md).\n"
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "Rules",
+          "content": {
+            "type": "text",
+            "value": "# Rules — the league cabinet\n\nEvery number the sim actually runs on. If a number here and a number in\n`src/lane/` disagree, the code is right and this file is a bug.\n\n## The shape of a game\n\n- **`num_agents` = 4.** One seat = one lane = one quadrant of the cabinet\n  screen. Seat `s` plays lane `s`; there is deliberately no seat→lane\n  permutation, because the four lanes are identical by construction.\n- Each lane is a **17 × 17 tile screen**, drawn into one **35 × 35 tile** board\n  with a one-tile gutter: lane origins `(0,0)`, `(18,0)`, `(0,18)`, `(18,18)`.\n- **`maxTicks` = 2880 ticks = 120.0 s** at 24 Hz, with a floor of\n  **`minTicks` = 1440**: the episode does not end early on \"all four lanes over\"\n  before tick 1440 — over lanes sit on their `GAME OVER` screen.\n- **24 decision turns** of `turnTicks` = 120 ticks (5.0 s).\n\n## Isolation — the invariant\n\n`stepLane(lane, cmd, preset, tick, par)` is a **pure function of one lane's own\nstate, that lane's own action byte and that lane's own RNG stream.** It takes no\n`SimServer`, reads no other lane and writes no other lane. Consequently:\n\n- rewriting lane `j`'s whole action-byte stream leaves every other lane's\n  per-tick state byte-identical;\n- lane `i` run alone in a one-lane sim reproduces its four-lane trajectory\n  exactly;\n- four lanes fed the identical action-byte stream finish with identical points,\n  lives, screens, sprite positions and RNG draw counts — the fairness proof.\n\nThe **one** thing that crosses lanes is the scoreboard, and it crosses in the\nobservation layer only: each seat sees every rival's `alias`, `score`, `lives`\nand `screen` and **nothing else**. It is composed outside `stepLane` and is\nnever read back by the sim.\n\n## Units\n\n| quantity | unit | type |\n|---|---|---|\n| position, size | **micro-units (µu)**; 1 tile = 12 000 µu | `int32` |\n| velocity | µu per tick | `int32` |\n| tile coordinate | `col, row ∈ 0…16` | `int8` |\n| direction | 0 stay, 1 up, 2 down, 3 left, 4 right | `uint8` |\n| points | whole arcade points | `int32` |\n| score accumulator | micro-points | `int64` |\n\nThe whole sim is integers: replays are re-simulated by the **emscripten/wasm32**\nbuild of the same module the **native amd64** server ran, and their per-tick\n`gameHash` chains must agree bit for bit. There is no floating point, no\ntrigonometry and no square root anywhere in `src/lane/{sim,grid,rom,maps,\nsprites,sim_types,sim_config,sim_state}.nim` — grep-enforced by\n`tests/test_determinism.nim`.\n\n## The action byte\n\nOne byte per seat per tick, 15 legal values:\n\n```\ndir = cmd mod 5      # 0 stay, 1 up, 2 down, 3 left, 4 right\nact = cmd div 5      # 0 none, 1 fire, 2 brake\n```\n\n`cmd >= 15` is **repaired to 0** in both the server and the replay runtime, so a\ncorrupt byte can never desynchronise the two.\n\n## The three cartridges\n\n| config key | `chomper` | `brickfall` | `gallery` | meaning |\n|---|---|---|---|---|\n| `livesPerLane` | 3 | 3 | 3 | credits per lane |\n| `avatarMode` | `freeGrid` | `railBottom` | `railBottom` | how the avatar may move |\n| `avatarSpeedMilli` | 1 500 | 2 200 | 1 900 | µu/tick |\n| `parScore` | 2 600 | 1 800 | 2 000 | the standing record |\n| `fireEnabled` | no | no | **yes** | whether `fire` does anything |\n| `brakeEnabled` | **yes** | no | no | whether `brake` does anything |\n| `screenClearBonus` | 500 | 350 | 300 | points for clearing the screen |\n| `rampPermille` | 1 060 | 1 150 | 1 200 | per-screen speed multiplier |\n\nEverything else — grid size, tile size, tick rate, `maxTicks`, `minTicks`, the\ndecision cadence, the wall-clock budget, the action byte, the scoring formula\nand `num_agents` — is **identical across all three**, which is what makes one\nscore scale and one budget arithmetic correct for all of them.\n\n### `chomper` — maze-chomp\n\nThe committed map has **120 pellets, 4 power pellets, 127 walkable tiles** and\n**one wrap tunnel across row 8** (leaving column 0 re-enters at column 16).\n\n- **Avatar**: moves along corridors, turns only at tile centres, with a 6-tick\n  turn latch (a buffered direction older than 6 ticks is discarded). `brake`\n  halves speed for that tick — it is how you let a hunter commit before you do.\n- **Sprites**: four `Chaser`s starting at `(8,4)`, `(4,8)`, `(12,8)`, `(8,1)`.\n  Speeds 1 250 (chasing) / 900 (fleeing) / 2 000 (returning) µu per tick. At\n  every tile centre a chaser picks the legal direction (never a reverse unless\n  it is the only one) minimising the tunnel-aware Manhattan distance to its\n  target; ties break UP, LEFT, DOWN, RIGHT. Targets: `H0` your tile, `H1` two\n  tiles ahead of your facing, `H2` four ahead, `H3` six ahead. Every\n  `scatterTicks` (drawn per screen in `[360, 600]`) the roster flips to\n  `Scatter` for 120 ticks and takes the four corners instead.\n- **Points**: pellet **10**, power pellet **50**, eating a fleeing chaser\n  **100 / 150 / 200 / 250** by chain position within one power window, screen\n  clear **+500**.\n- **Power window**: 144 ticks (6.0 s); every non-returning chaser flees and\n  reverses once, and the chain counter resets.\n- **Life lost**: your box overlaps a chasing/scattering chaser's box (both boxes\n  8 000 µu on a side, centred).\n- **Screen clear**: every pellet and power pellet gone.\n\n### `brickfall` — brick-breaking\n\nWalls on row 0 and columns 0 and 16; **row 16 is the drain**; 60 bricks on rows\n3–6; a 3-tile paddle on row 15.\n\n- **Avatar**: only `left`/`right` do anything; the paddle centre is clamped to\n  `x ∈ [18 000, 186 000]`.\n- **Ball**: served from `(8,12)` after a 24-tick delay at `BallFan[j]` for `j`\n  drawn from `{1,2,4,5}` (never straight down, never a wall-grazer).\n- **The fan** — a committed 7-entry integer table indexed by which **seventh of\n  the paddle** the ball struck. Every entry has `vy < 0`, so **a paddle can\n  never send the ball back into the drain**, and every magnitude is within 5 %\n  of 2 800 µu/tick:\n\n  ```\n  BallFan = [(-2600,-1200), (-2100,-1900), (-1200,-2500), (0,-2800),\n             (1200,-2500), (2100,-1900), (2600,-1200)]\n  ```\n- **Speed ramp**: every 8 brick hits `speedPermille += 50`, capped at 1 400;\n  the applied velocity is `(v · speedPermille) div 1000`.\n- **Points**: brick row 3 = **50**, row 4 = **30**, row 5 = **20**, row 6 =\n  **10** (1 650 per screen); screen clear **+350**.\n- **Life lost**: the ball's centre crosses `y = 192 000 µu`, the top of row 16.\n\n### `gallery` — shooter gallery\n\nWalls on row 0, columns 0 and 16 and row 16; six bunker tiles on row 12 (each\ntakes 3 hits); a 3-tile paddle on row 14.\n\n- **Avatar**: `fire` spawns a friendly bolt (`vy = -4 000 µu/tick`) from the\n  paddle centre, at most **2 in flight**, with a **6-tick** reload.\n- **Sprites**: **32 marchers** in a 4 × 8 formation on rows 2–5. The formation\n  moves as one body: every `marchTicks` (screen 1: 20 ticks) it steps one tile\n  horizontally, and when any marcher would leave columns 1…15 the whole body\n  steps one tile down and reverses. `marchTicks` shortens per eight marchers\n  destroyed, so a thinning formation accelerates. A live marcher fires a hostile\n  bolt (`vy = +2 600`) when the per-tick draw is below `fireChancePermille`\n  (18) and fewer than 3 hostile bolts are in flight; the firing marcher is the\n  lowest live one in a drawn column.\n- **Saucer**: 12/1000 per tick, never within 240 ticks of the last, crossing row\n  1 at 3 000 µu/tick. **100 points.**\n- **Points**: top marcher rank **30**, then **20**, **10**, **10**; saucer\n  **100**; wave clear **+300**.\n- **Life lost**: a hostile bolt overlaps you, **or** any marcher reaches row 13\n  (which also resets the formation and restores the bunkers — a setback, not an\n  instant game over).\n\n> The design note lists the eight formation columns as 1, 3, 5, 7, 9, 11, 13 and\n> 15. That spread is flush against the note's own \"would leave columns 1…15\"\n> bounds rule, so the body would step DOWN on every march tick and breach row 13\n> in 160 ticks — a wave nothing could clear. The eight columns shipped are\n> adjacent and centred (5…12), which leaves four tiles of room to the left and\n> three to the right: a drop every ~7 march steps, ~1 120 ticks to a breach,\n> which is the pacing every other number in the note is sized for.\n\n## No tunnelling, proved rather than hoped\n\nThe fastest collidable is a gallery bolt at 4 000 µu/tick; the shallowest\ncontact window is half a tile plus a box half-side, `6 000 + 3 000 = 9 000 µu`.\n`9 000 > 4 000`, so every collidable is overlapped for at least two consecutive\nend-of-tick positions in every legal configuration. `tests/test_physics.nim`\nasserts the inequality directly and cross-checks the swept test against the\nend-position test over 50 000 randomised states.\n\n## Scoring\n\n```\nscoreMicro[s] = 10 000 · points[s] + 1 000 000 · lives[s]\nscore[s]      = scoreMicro[s] / 1 000 000        (three decimals)\n```\n\n**Placement** is computed once at game over by this exact chain: higher score,\nthen more lives left, then **earlier** `lastScoreTick` (reaching the same total\nsooner is better play), then lower seat index. The index tiebreak makes the\nchain total, so `placements` is always a strict permutation of 1…4 and exactly\none seat wins. There are no shared places.\n\nThe league ranks by the seat's **mean `results.scores` value** across its\nepisodes. `results.rom` records which cartridge an episode played, so a board\ncan always be split per ROM afterwards.\n\n## Ending\n\n| `reason` | `endRule` | when |\n|---|---|---|\n| `complete` | `all_lanes_over` | `t ≥ minTicks` **and** all four lanes have spent their lives |\n| `complete` | `full_time` | `maxTicks` reached with at least one lane alive — the normal ending |\n| `deadline` | `wall_clock` | `wallClockBudgetSeconds` (660) elapsed first; the sim stops at that tick and scores the state as it stands |\n| `fault` | `sim_fault` | an invariant guard tripped; a partial replay is still written |\n| `fault` | `host_error` | an unexpected server-side exception |\n\nA seat that never connects does **not** end the episode: the lobby timeout\nexpires, the no-show is reported to `COGAME_PLAYER_FAILURE_URI`, its lane is\ndriven by `arcader` for the whole run, and the round plays to a normal ending.\n\nThere is no rescue rule, no mercy and no difficulty *reduction*. A lane whose\navatar never moves loses three lives and finishes near zero — a legible,\ncorrectly scored failure.\n"
+          }
+        },
+        {
+          "id": "protocol.md",
+          "title": "Wire protocol",
+          "content": {
+            "type": "text",
+            "value": "# Wire protocol — the cabinet\n\nTwo sockets, one replay format, and one rule that matters more than any of\nthem: **a seat sees its own lane and the four-row scoreboard, and nothing\nelse.**\n\n## THE PLAYER SOCKET (ws://<game>/player?slot=N&token=T)\n\nA seat sends exactly ONE message that matters and then only receives.\n\n1. REGISTRATION. One Sprite v1 chat frame (0x81), a JSON object:\n     {\"type\":\"register\",\"prompt\":\"<strategy text or empty>\",\n      \"scripted\":\"arcader\"|\"hoover\"|null,\"policy\":\"<free label>\"}\n   `prompt` non-empty makes the seat an LLM seat; `scripted` names a published\n   baseline; a seat that sets neither is `arcader`, and the server LOGS THAT\n   LOUDLY. The registration is re-sent for the first ~10 s of frames because a\n   seat's slot may not be admissible yet; the server holds an unappliable\n   registration rather than dropping it. `prompt` is capped at 4000 runes at\n   the transport (truncated, never rejected) and is NEVER written to the\n   replay or the results.\n\n2. FRAMES. One binary Sprite v1 message per tick carrying THIS SEAT'S LANE\n   ONLY: its whole 17x17 screen, every tile, every sprite, its avatar, its\n   lives and its points. The other three quadrants are not in a player frame\n   at all. Board labels carry only the colour aliases RED / BLUE / GREEN /\n   YELLOW; `showPlayerLabels` is forced false on this stream.\n\n3. READY. The seat replies with the Sprite v1 ready packet (0x85) after each\n   received frame. SEATS SEND NO INPUTS: every action byte is computed\n   server-side by the autopilot, so an input mask arriving on a player socket\n   is discarded.\n\nTHE DECISION. Every 120 ticks (5.0 s) the GAME server composes this seat's\nboard view and asks the seat's policy for one STANCE. The view is the seat's\nown screen as a 17-line ASCII map plus structured `threats`, `targets`,\n`zones`, its own counters, and a four-row SCOREBOARD strip carrying every\nrival's {alias, score, lives, screen} and nothing else. The reply is:\n\n  {\"note\":\"<=160 runes\",\"mode\":\"clear|hunt|strike|safe|bank\",\n   \"zone\":\"nw|ne|sw|se|centre|left|right|top|bottom|none\",\n   \"risk\":0.0..1.0,\"lead_ticks\":0..48,\n   \"fire\":\"auto|hold|never\",\"say\":\"<=48 runes\"}\n\nParsing is tolerant (markdown fences, prose prefixes, percentages, synonyms);\nevery field is repaired rather than rejected; two consecutive failures fall\nback to the published `arcader` stance and write a `fallback` record.\n\n## THE SPECTATOR SOCKET (ws://<game>/global) AND THE REPLAY BYTES\n\n/global carries the same Sprite v1 board every viewer draws — the 2x2\nquad-split of four 17x17 screens on one 1400x1400 board — plus ONE reserved\nnever-drawn 1x1 sprite (id 4090) whose LABEL is the whole JSON chrome frame.\nThat frame carries: `t`/`mt`/`ph`/`sp`/`mx`/`st`/`en` (the transport), `teams`\nkeyed red/blue/green/yellow with each lane's score, points, lives,\nlivesPerLane, screen, record flag and over flag, `roster` (the REAL policy\nnames — spectator side only), `events`, `a57` (the rom, the par, and each\nlane's tiles, sprites, avatar and standing stance), `stances`, `lead` (the\nmomentum series), `beats`, `lulls` and, at game over, `over`.\n\nTHE REPLAY is the starter's binary COWLDA57 format and is SELF-SUFFICIENT:\n\n  header      magic COWLDA57, format version, gameName atari-57, gameVersion 1\n  config JSON seed, rom, the FULLY RESOLVED cartridge preset, the loaded map's\n              17 rows verbatim and its sha256, the whole geometry table, the\n              point tables, the scoring constants, the real player names and\n              the in-game aliases\n  joins       one per seat\n  inputs      THE ACTION LOG: one action byte per seat per tick, written on\n              change only. dir = cmd mod 5 (0 stay, 1 up, 2 down, 3 left,\n              4 right); act = cmd div 5 (0 none, 1 fire, 2 brake); cmd >= 15\n              is repaired to 0 identically on both sides\n  chats       register / stance / fallback / budget_guard / stopped / result\n  hashes      one gameHash per tick — the integrity chain the wasm viewer\n              re-checks against its own re-simulation, every tick\n\nThe viewer is a STATIC wasm bundle (`replay_viewer.bundle =\nstatic-replay-viewer`): it re-runs the same sim module the server ran from the\nrecorded action bytes and contacts no server but S3. `tools/replay_summary.py`\n(Python 3 stdlib only) prints one strict-UTF-8 JSON object from a replay\nfile.\n\n## The COGAME_* runtime contract\n\nThe game container is started with the platform's standard environment and\nnever receives `COWORLD_TIMEOUT_SECONDS` — so it assumes `episodeTimeoutSeconds`\n= 1200 and settles inside 60 % of it by construction (`wallClockBudgetSeconds`\n= 660, and a budget guard that switches the LLM off two turns before the stop\nso the episode ends `complete/*` rather than `deadline`).\n\n| variable | what |\n|---|---|\n| `COGAME_CONFIG_URI` | the episode's `game_config`, validated against `game.config_schema` |\n| `COGAME_RESULTS_URI` | where `results.json` is written |\n| `COGAME_SAVE_REPLAY_URI` | where the `COWLDA57` replay is written |\n| `COGAME_LOAD_REPLAY_URI` | replay-server mode |\n| `COGAME_EVENTS_URI` | the tier-2 JSON-lines analysis stream (`file://` only) |\n| `COGAME_METRICS_URI` | optional performance counters |\n| `COGAME_PLAYER_FAILURE_URI` | where a lobby no-show is declared |\n| `COGAME_HOST` / `COGAME_PORT` | the listener |\n| `ANTHROPIC_API_KEY_URI` | `secret://coworld/atari-57/anthropic_api_key` — injected into the GAME pod, which is where every decision happens |\n\nRoutes: `GET /healthz`, `GET /player?slot=N&token=T` (websocket),\n`GET /global` (websocket), `GET /replay` (websocket), `GET /client/global`,\n`GET /client/player`, `GET /client/replay`, `GET /replay-data`.\n`/client/global` and `/client/player` serve real pages and neither opens the\nplayer socket — the episode runner probes both **before** starting the player\npods. The player websocket **closes on a token that does not match the seat**\n(the certifier probes with a bad one), and a `Ping` is always answered with a\n`Pong`. `/healthz` and `/global` keep answering for a bounded ~20 s after the\nartifacts are written, because the runner pings `/global` *after* the player\npods start and a short episode can already be gone.\n\n## Record vocabulary\n\n**Replay chat records** (written by the server, re-applied in order at\nplayback):\n\n| `k` | fields |\n|---|---|\n| `register` | `seat`, `alias`, `lane`, `policy` (≤ 48 runes), `kind`, `baseline` |\n| `stance` | `turn`, `seat`, `alias`, `lane`, `source`, `latency_ms`, `note`, `mode`, `zone`, `risk`, `lead_ticks`, `fire`, `say` |\n| `fallback` | `turn`, `seat`, `attempt`, `cause`, `detail` (≤ 200 runes) |\n| `budget_guard` | `turn`, `remaining_s` |\n| `stopped` | `tick`, `reason` — the load-bearing wall-clock stop, applied by the same proc on record and on playback |\n| `result` | the whole results document, written once at game over |\n\n**Derived broadcast events** — `pickup`, `chain`, `near_miss`, `life_lost`,\n`screen_clear`, `record`, `lane_over`, `say`, `phase`, `over`. They are derived\nfrom state deltas during playback, so they cost no replay bytes and are\nidentical live and in replay. **Beats** (scrubber markers) are exactly\n`life_lost`, `screen_clear`, `record`, `lane_over` and `over`; `pickup`,\n`chain`, `near_miss` and `say` fire hundreds of times and would bury the\nscrubber.\n\n**Rune discipline.** Every cap is measured in RUNES and every truncation lands\non a rune boundary. Slicing a string by byte index anywhere on the path to the\nreplay is forbidden: a byte-truncated multi-byte character renders fine in a\nbrowser and then fails a strict UTF-8 parser.\n"
+          }
+        },
+        {
+          "id": "stances.md",
+          "title": "Writing a lane stance",
+          "content": {
+            "type": "text",
+            "value": "# Writing a lane stance\n\nA policy on this cabinet is a **prompt**. Every 5 seconds the game server hands\nyour seat its own board view and asks for one JSON object; a deterministic\nautopilot then runs that object 24 times a second for the next 120 ticks. You\nnever touch a joystick — you choose **what to go for** and **how much risk to\ntake**.\n\n## The reply\n\n```json\n{\"note\": \"power pellet 62 ticks away in sw and nothing is chasing me there; take it, then cash the chain\",\n \"mode\": \"hunt\", \"zone\": \"sw\", \"risk\": 0.55, \"lead_ticks\": 16,\n \"fire\": \"auto\", \"say\": \"going for the power\"}\n```\n\n| field | type | legal values | repair when violated |\n|---|---|---|---|\n| `note` | string | ≤ 160 runes | truncated on a rune boundary |\n| `mode` | string | `clear`, `hunt`, `strike`, `safe`, `bank` | unrecognised → last turn's `mode`, else `clear` |\n| `zone` | string | `nw`, `ne`, `sw`, `se`, `centre`, `left`, `right`, `top`, `bottom`, `none` | unrecognised → `none` |\n| `risk` | number | clamped `[0, 1]`, quantised to a permille | non-finite → last turn's, else `0.5` |\n| `lead_ticks` | integer | clamped `[0, 48]` | non-finite → `14` |\n| `fire` | string | `auto`, `hold`, `never` — GALLERY only | unrecognised → `auto` |\n| `say` | string | ≤ 48 runes | truncated, then printable-ASCII sanitised |\n\n**Parsing is tolerant.** Markdown fences are stripped; prose before or after the\nobject is ignored (the outermost balanced `{…}` wins); numeric strings are\naccepted; a `risk` above 1 is read as a percentage and divided by 100; `mode`,\n`zone` and `fire` are matched case-insensitively with synonyms —\n`greedy`/`collect` → `clear`, `attack` → `strike`, `chase` → `hunt`,\n`defend`/`dodge` → `safe`, `survive`/`turtle` → `bank`; `\"north-west\"`,\n`\"top left\"`, `\"upper left\"` → `nw` (and the mirrors), `\"middle\"` → `centre`,\n`\"anywhere\"` → `none`; `\"always\"` → `auto`, `\"off\"` → `never`.\n\nOnly when **no usable field at all** can be recovered do the single retry and\nthen the scripted fallback fire.\n\n## What each mode does\n\n| mode | what the autopilot does |\n|---|---|\n| `clear` | weights every target by `value / distTicks` — take the nearest scoring thing, over and over. The default. |\n| `hunt` | weights by `value^1.5 / distTicks` — go for the highest-value thing reachable even if it is far. |\n| `strike` | as `hunt`, but ×3 on fleeing hunters (`chomper`), the top two brick rows (`brickfall`) and the saucer / top rank (`gallery`). This is the cash-in stance. |\n| `safe` | as `clear`, scaled by each target's own `min(1, threatEta/48)` — keep the largest distance from every threat that still scores. |\n| `bank` | as `safe`, and any target whose route enters a tile a hostile can reach within 24 ticks is **removed** from the set. You will score slowly and you will not die. |\n\n`zone` multiplies every target outside it by 0.35 — a bias, not a fence.\n\n`risk` sets the **danger gate**: a move into a tile whose threat ETA is below\n`(1 - risk) · 96 + 4` ticks is rejected outright. At `risk = 0` nothing may come\nwithin four tiles; at `risk = 1` threats are ignored entirely. In `gallery` it\nalso decides how early the paddle steps out of a falling bolt's column: a paddle\nthat only dodges in `safe` dies with a full magazine.\n\n`lead_ticks` is how long the autopilot commits to a chosen route before\nre-deciding — but the danger gate can always break a commitment early.\n\n`fire` matters only in `gallery`: `auto` fires whenever a bolt slot and the\nreload allow, `hold` fires only when the paddle is lined up on the lowest live\nmarcher in its column, `never` holds fire.\n\n## What you can see\n\nYour **own whole screen** — every tile, every sprite, your avatar, your lives,\nyour points — plus:\n\n- `threats`: every hostile in your lane, sorted by `eta_ticks` ascending;\n- `targets`: up to 12 scoring things, sorted by `value / dist_ticks`, each with\n  its zone and whether it is `safe`. **This is the same array the autopilot\n  weights**, so you are never guessing at a quantity the engine already knows;\n- `zones`: the five fixed regions with their total target value and the soonest\n  a hostile can be in them;\n- `scoreboard`: every rival's `alias`, `score`, `lives` and `screen` — the\n  entire cross-lane surface, and read-only.\n\nYou cannot see any other lane's board, sprites, stance, note or policy, the\nseed, any RNG state, any future draw, any wall-clock fact, or who holds any\nseat, including your own.\n\n## Two worked stances\n\n**Cash a chain.** `power_ticks_left` is above 60, so the four hunters are\nfleeing for another 2.5 seconds and the chain pays 100 + 150 + 200 + 250:\n\n```json\n{\"note\": \"power window open with 2.5s left; three hunters within 5 tiles\",\n \"mode\": \"strike\", \"zone\": \"none\", \"risk\": 0.85, \"lead_ticks\": 10,\n \"fire\": \"auto\", \"say\": \"chain time\"}\n```\n\n**Protect a lead.** You are ahead on the scoreboard with 25 seconds left; a life\nis worth 1.000 and 200 more points are worth 2.000, but a death costs 1.000 and\nthe clock:\n\n```json\n{\"note\": \"leading by 4.2 with 25s left; nothing is worth a life now\",\n \"mode\": \"bank\", \"zone\": \"none\", \"risk\": 0.1, \"lead_ticks\": 12,\n \"fire\": \"auto\", \"say\": \"sitting on it\"}\n```\n\n## The published baselines\n\nBoth ship in the same image and emit the identical object, so they are directly\ncomparable with any prompt.\n\n**`arcader`** (`PLAYER_SCRIPTED=arcader`) — the certification player, the\nper-turn fallback and the default for a seat that registers with neither env\nvar:\n\n1. lane over → `safe`, risk 0, `fire: never`;\n2. else `powerTicksLeft > 48` → `strike`, risk 0.85, lead 10;\n3. else the nearest threat inside `panicTicks` (20) → `safe`, risk 0.15, lead 8;\n4. else a power pellet within 72 ticks → `hunt` in that pellet's zone, lead 16;\n5. else `clear` in the zone with the most target value;\n6. and in every branch, on the last life: halve the risk and demote `hunt` to\n   `clear`.\n\n**`hoover`** (`PLAYER_SCRIPTED=hoover`) — deliberately different in shape and\nweaker: `{\"mode\":\"clear\",\"zone\":\"none\",\"risk\":1.0,\"lead_ticks\":24,\n\"fire\":\"auto\"}` every turn. It never dodges. It banks points fast and dies fast,\nwhich gives the ladder a spread.\n\n`arcader`'s three tunables (`panicTicks`, `riskMilli`, `leadTicks`) are a\n`BaselineParams` object rather than literals because they were **chosen by a\ngrid sweep**, not guessed: `tools/tune_baselines.nim` plays four `arcader`s over\na 4 × 3 × 3 matrix across all three ROMs and six seeds,\n`tools/ci/baseline_tuning.json` records the whole grid and the pick, and\n`tests/test_tuning.nim` re-asserts that the shipped defaults still equal it.\n"
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "baseline",
+      "type": "player",
+      "name": "Arcader Baseline",
+      "description": "Scripted arcade player: take the nearest scoring thing, bail when a threat gets inside 20 ticks, cash the power chain when it opens. No LLM.",
+      "image": "{{ATARI_57_IMAGE}}",
+      "run": [
+        "/bin/atari-57-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "arcader"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-atari-57/tree/main",
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "1"
+        }
+      }
+    }
+  ],
+  "variants": [
+    {
+      "id": "chomper",
+      "name": "ROM 1 — Chomper (maze)",
+      "description": "120 pellets, 4 power pellets, four hunters and a wrap tunnel. Eat the maze, cash the chain, do not get caught.",
+      "game_config": {
+        "num_agents": 4,
+        "players": [
+          {
+            "name": "P1"
+          },
+          {
+            "name": "P2"
+          },
+          {
+            "name": "P3"
+          },
+          {
+            "name": "P4"
+          }
+        ],
+        "slots": [
+          {
+            "alias": "RED"
+          },
+          {
+            "alias": "BLUE"
+          },
+          {
+            "alias": "GREEN"
+          },
+          {
+            "alias": "YELLOW"
+          }
+        ],
+        "minPlayers": 4,
+        "rom": "chomper",
+        "livesPerLane": 3,
+        "parScore": 2600,
+        "maxTicks": 2880,
+        "minTicks": 1440,
+        "maxGames": 1,
+        "turnTicks": 120,
+        "turnBudgetMs": 16000,
+        "attempt1Ms": 9000,
+        "retryMs": 5000,
+        "turnSpacingMs": 12000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 2880,
+        "fastMode": true
+      }
+    },
+    {
+      "id": "brickfall",
+      "name": "ROM 2 — Brickfall (bricks)",
+      "description": "A paddle, one ball and 60 bricks worth 50/30/20/10 by row. The angle comes off the paddle; the ball never slows down.",
+      "game_config": {
+        "num_agents": 4,
+        "players": [
+          {
+            "name": "P1"
+          },
+          {
+            "name": "P2"
+          },
+          {
+            "name": "P3"
+          },
+          {
+            "name": "P4"
+          }
+        ],
+        "slots": [
+          {
+            "alias": "RED"
+          },
+          {
+            "alias": "BLUE"
+          },
+          {
+            "alias": "GREEN"
+          },
+          {
+            "alias": "YELLOW"
+          }
+        ],
+        "minPlayers": 4,
+        "rom": "brickfall",
+        "livesPerLane": 3,
+        "parScore": 1800,
+        "maxTicks": 2880,
+        "minTicks": 1440,
+        "maxGames": 1,
+        "turnTicks": 120,
+        "turnBudgetMs": 16000,
+        "attempt1Ms": 9000,
+        "retryMs": 5000,
+        "turnSpacingMs": 12000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 2880,
+        "fastMode": true
+      }
+    },
+    {
+      "id": "gallery",
+      "name": "ROM 3 — Gallery (invaders)",
+      "description": "Thirty-two marchers step down, three bunkers erode, and the saucer pays 100. Clear the wave before it reaches row 13.",
+      "game_config": {
+        "num_agents": 4,
+        "players": [
+          {
+            "name": "P1"
+          },
+          {
+            "name": "P2"
+          },
+          {
+            "name": "P3"
+          },
+          {
+            "name": "P4"
+          }
+        ],
+        "slots": [
+          {
+            "alias": "RED"
+          },
+          {
+            "alias": "BLUE"
+          },
+          {
+            "alias": "GREEN"
+          },
+          {
+            "alias": "YELLOW"
+          }
+        ],
+        "minPlayers": 4,
+        "rom": "gallery",
+        "livesPerLane": 3,
+        "parScore": 2000,
+        "maxTicks": 2880,
+        "minTicks": 1440,
+        "maxGames": 1,
+        "turnTicks": 120,
+        "turnBudgetMs": 16000,
+        "attempt1Ms": 9000,
+        "retryMs": 5000,
+        "turnSpacingMs": 12000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 2880,
+        "fastMode": true
+      }
+    }
+  ],
+  "certification": {
+    "players": [
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      }
+    ],
+    "game_config": {
+      "players": [
+        {
+          "name": "P1"
+        },
+        {
+          "name": "P2"
+        },
+        {
+          "name": "P3"
+        },
+        {
+          "name": "P4"
+        }
+      ],
+      "slots": [
+        {
+          "alias": "RED"
+        },
+        {
+          "alias": "BLUE"
+        },
+        {
+          "alias": "GREEN"
+        },
+        {
+          "alias": "YELLOW"
+        }
+      ],
+      "num_agents": 4,
+      "minPlayers": 4,
+      "seed": 5140913,
+      "rom": "chomper",
+      "livesPerLane": 9,
+      "maxTicks": 1440,
+      "minTicks": 1440,
+      "maxGames": 1,
+      "turnTicks": 120,
+      "turnBudgetMs": 16000,
+      "turnSpacingMs": 0,
+      "wallClockBudgetSeconds": 180,
+      "lobbyJoinTimeoutTicks": 720,
+      "fastMode": true
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "num_agents": 4,
+  "minPlayers": 4,
+  "rom": "chomper",
+  "maxTicks": 2880,
+  "minTicks": 1440,
+  "maxGames": 1,
+  "turnTicks": 120,
+  "turnBudgetMs": 16000,
+  "attempt1Ms": 9000,
+  "retryMs": 5000,
+  "turnSpacingMs": 12000,
+  "wallClockBudgetSeconds": 660,
+  "lobbyJoinTimeoutTicks": 2880,
+  "fastMode": true,
+  "players": [
+    { "name": "player1" },
+    { "name": "player2" },
+    { "name": "player3" },
+    { "name": "player4" }
+  ],
+  "slots": [
+    { "alias": "RED" },
+    { "alias": "BLUE" },
+    { "alias": "GREEN" },
+    { "alias": "YELLOW" }
+  ],
+  "tokens": ["0xBADA55_0", "0xBADA55_1", "0xBADA55_2", "0xBADA55_3"]
+}

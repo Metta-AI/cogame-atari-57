@@ -1,0 +1,11 @@
+# One service, named for the coworld, so the manifest's image placeholder is
+# {{ATARI_57_IMAGE}} — placeholders are DERIVED from compose service names by
+# uppercasing and replacing `-` with `_`. `{{GAME_IMAGE}}` is not a thing
+# (cogame-lantern 0.1.0).
+services:
+  atari-57:
+    image: coworld-atari-57:latest
+    platform: linux/amd64
+    build:
+      context: .
+      network: host
