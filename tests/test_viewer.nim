@@ -260,13 +260,17 @@ proc testNoStarterIdentifiers() =
         "broadcast_core.js does not read the renamed wire constants")
   report("no live ctf_/CTF_/paintball identifier outside chrome_common.js")
 
-proc testBroadcastCoreDiffersOnlyInTheWireName() =
-  ## The core is the starter's, verbatim apart from the ONE identifier.
+proc testBroadcastCoreDiffersOnlyInTheWireNameAndOnePath() =
+  ## The core is the starter's, verbatim apart from TWO retargetings: the
+  ## `window.CTF_WIRE` identifier and one comment that names the sim's path
+  ## (`src/ctf/sim.nim` -> `src/lane/sim.nim`). Restore both, and what is left
+  ## must be the starter's file.
   var restored = core.replace("window.LANE_WIRE", "window.CTF_WIRE")
   restored = restored.replace("in src/lane/sim.nim)", "in src/ctf/sim.nim)")
   check(restored.count("window.CTF_WIRE") == 2,
         "broadcast_core.js changed by more than the wire identifier")
-  report("broadcast_core.js differs from the starter's in the wire name alone")
+  report("broadcast_core.js differs from the starter's in the wire name and " &
+         "one comment path")
 
 proc testStaticReplayMarkers() =
   check(staticReplay.contains("'data-replay-loaded', 'true'"),
@@ -334,7 +338,7 @@ when isMainModule:
   testLegibleAt360()
   testBubbleBand()
   testNoStarterIdentifiers()
-  testBroadcastCoreDiffersOnlyInTheWireName()
+  testBroadcastCoreDiffersOnlyInTheWireNameAndOnePath()
   testStaticReplayMarkers()
   testViewerLinkFlags()
   testStateKeysMatchTheChrome()
