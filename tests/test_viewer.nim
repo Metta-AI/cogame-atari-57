@@ -103,6 +103,40 @@ proc testRemovedElements() =
           &"CSS or markup for the removed element {selector} is still present")
   report("every removed element and its CSS is gone")
 
+proc testNoZoomPanWiring() =
+  ## #viewpanel is not merely hidden: the WIRING that fed it is gone too. The
+  ## board is a fixed 1400x1400 square that is always letterboxed whole into the
+  ## frame, so a live zoom/pan handler would move the arena off-frame with no
+  ## visible control to bring it back (the zoom bar and its #zoom-read readout
+  ## were removed). broadcast_core.js keeps its own implementation verbatim —
+  ## nothing may drive it.
+  for call in ["core.zoomAt(", "core.setZoom(", "core.panBy(", "core.panByMap(",
+               "core.panTo(", "core.resetView(", "core.attachMinimap("]:
+    check(not page.contains(call),
+          &"client/replay_broadcast.html still drives {call} — the fixed arena " &
+          "removes the zoom/pan wiring, not just the #viewpanel markup")
+  for handler in ["'wheel'", "'gesturestart'", "'gesturechange'", "'dblclick'",
+                  "'pointerdown'", "'pointermove'"]:
+    check(not page.contains("addEventListener(" & handler),
+          &"the starter's {handler} view handler is still bound")
+
+  let worker = readRepoFile("replay-viewer/static_replay_worker.js")
+  for name in ["zoomAt:", "setZoom:", "panBy:", "panByMap:", "panTo:",
+               "resetView:", "attachMinimap:"]:
+    check(not staticReplay.contains(name),
+          &"replay-viewer/static_replay.js still exposes {name}")
+  check(not staticReplay.contains("type: 'view'") and
+        not staticReplay.contains("type: 'minimap'"),
+        "static_replay.js still posts view/minimap messages to the Worker")
+  for call in ["core.zoomAt(", "core.setZoom(", "core.panBy(", "core.panByMap(",
+               "core.panTo(", "core.resetView(", "core.attachMinimap("]:
+    check(not worker.contains(call),
+          &"static_replay_worker.js still routes {call} into the core")
+  check(core.contains("zoomAt") and core.contains("attachMinimap"),
+        "broadcast_core.js lost its zoom/pan/minimap code — it stays verbatim, " &
+        "simply never driven")
+  report("no zoom/pan/minimap wiring survives; broadcast_core keeps its own")
+
 proc testBeatMarkers() =
   ## Every kind the sim emits as a BEAT has a CSS rule, and every marker the
   ## game block draws is a <button> that seeks on click — not an unlabelled
@@ -270,6 +304,7 @@ when isMainModule:
   testTransportContract()
   testKeptElements()
   testRemovedElements()
+  testNoZoomPanWiring()
   testBeatMarkers()
   testNoAliasCollision()
   testLegibleAt360()

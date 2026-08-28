@@ -10,7 +10,6 @@ var runtimeReady = false;
 var initMessage = null;
 var runtimeLoaded = false;
 var core = null;
-var minimapSurface = null;
 var failed = false;
 var disposed = false;
 
@@ -100,7 +99,6 @@ function createBroadcastCore(message) {
     },
     onSendPacket: sendRuntimeInput
   });
-  if (minimapSurface) core.attachMinimap(minimapSurface);
   core.start();
 }
 
@@ -210,22 +208,10 @@ self.onmessage = function (event) {
       applyInputNow();
     } else if (message.type === 'resize' && core) {
       core.setViewportSize(message.width, message.height, message.dpr);
-    } else if (message.type === 'view' && core) {
-      // The canvas is an OffscreenCanvas here, so wheel/drag land on the main
-      // thread's placeholder element and arrive as view commands. The core's
-      // transform (and the transform echoed back for click mapping) stays the
-      // single source of truth either way.
-      if (message.action === 'zoom') core.zoomAt(message.factor, message.x, message.y);
-      else if (message.action === 'setZoom') core.setZoom(message.level, message.x, message.y);
-      else if (message.action === 'pan') core.panBy(message.dx, message.dy);
-      else if (message.action === 'panMap') core.panByMap(message.dx, message.dy);
-      else if (message.action === 'panTo') core.panTo(message.x, message.y);
-      else if (message.action === 'reset') core.resetView();
-    } else if (message.type === 'minimap') {
-      // The board pixels live here, so the minimap is drawn here too. The page
-      // transferred its canvas across; hold it until the core exists.
-      minimapSurface = message.canvas || null;
-      if (core && minimapSurface) core.attachMinimap(minimapSurface);
+    // No view or minimap message arrives: the fixed arena removed #viewpanel
+    // and every zoom/pan handler with it, so nothing on the main thread can ask
+    // this core to zoom, pan or draw a minimap. The transform echoed back for
+    // click mapping stays the single source of truth.
     } else if (message.type === 'dispose') {
       disposed = true;
       if (core) core.stop();

@@ -65,25 +65,6 @@
     };
     var viewport = { width: 1, height: 1, dpr: window.devicePixelRatio || 1 };
     var offscreen;
-    var pendingMinimap = null;
-    var minimapSent = false;
-
-    // transferControlToOffscreen is one-way and one-shot: the canvas is dead to
-    // the main thread afterwards, so this must happen exactly once, and only
-    // once the Worker exists to receive it.
-    function sendMinimap() {
-      if (!worker || !pendingMinimap || minimapSent) return;
-      if (typeof pendingMinimap.transferControlToOffscreen !== 'function') return;
-      try {
-        var surface = pendingMinimap.transferControlToOffscreen();
-        minimapSent = true;
-        pendingMinimap = null;
-        worker.postMessage({ type: 'minimap', canvas: surface }, [surface]);
-      } catch (error) {
-        console.warn('Minimap unavailable', error);
-        pendingMinimap = null;
-      }
-    }
 
     if (!canvas || typeof canvas.transferControlToOffscreen !== 'function') {
       showFailure(new Error('This browser does not support OffscreenCanvas Workers'));
@@ -209,7 +190,6 @@
           height: viewport.height,
           dpr: viewport.dpr
         }, [offscreen]);
-        sendMinimap();
         document.documentElement.setAttribute('data-replay-worker', 'true');
       } catch (error) {
         showFailure(error);
@@ -234,36 +214,11 @@
       clickMap: function (mapX, mapY) {
         if (worker) worker.postMessage({ type: 'click', x: mapX, y: mapY });
       },
-      // Zoom/pan forwarded to the worker that owns the OffscreenCanvas. Same
-      // signatures as the in-process core, so the page drives one API whether
-      // it renders here or in a worker.
-      zoomAt: function (factor, x, y) {
-        if (worker) worker.postMessage({ type: 'view', action: 'zoom', factor: factor, x: x, y: y });
-      },
-      setZoom: function (level, x, y) {
-        if (worker) worker.postMessage({ type: 'view', action: 'setZoom', level: level, x: x, y: y });
-      },
-      panBy: function (dx, dy) {
-        if (worker) worker.postMessage({ type: 'view', action: 'pan', dx: dx, dy: dy });
-      },
-      panByMap: function (dx, dy) {
-        if (worker) worker.postMessage({ type: 'view', action: 'panMap', dx: dx, dy: dy });
-      },
-      panTo: function (x, y) {
-        if (worker) worker.postMessage({ type: 'view', action: 'panTo', x: x, y: y });
-      },
-      resetView: function () {
-        if (worker) worker.postMessage({ type: 'view', action: 'reset' });
-      },
-      // The board pixels the minimap shrinks live in the Worker, so the Worker
-      // has to draw it: hand over control of the page's minimap canvas exactly
-      // once and let the core keep it in sync from there.
-      attachMinimap: function (surface) {
-        // The page wires its controls before start(), so hold the surface until
-        // there is a Worker to hand it to.
-        pendingMinimap = surface || null;
-        sendMinimap();
-      },
+      // No zoomAt/setZoom/panBy/panByMap/panTo/resetView/attachMinimap: this
+      // arena is a fixed square that always fits the frame, so #viewpanel and
+      // every handler that drove it are gone from the page (see the removal
+      // banner in client/replay_broadcast.html). The Worker's core keeps the
+      // implementation; nothing routes to it.
       getTransform: function () { return transform; },
       setViewportFit: postViewport,
       getPaceStats: function () {
