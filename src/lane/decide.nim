@@ -163,9 +163,25 @@ proc turn*(
   # `turnSpacingMs` apart, which pins the episode at 4 requests / 12 s =
   # 20 rpm. The cert fixture sets it to 0, so offline runs pay nothing.
   if open.len > 0 and engine.batchStarted and sim.config.turnSpacingMs > 0:
-    let since = (getMonoTime() - engine.lastBatchStart).inMilliseconds.int
-    if since < sim.config.turnSpacingMs:
-      sleep(min(sim.config.turnSpacingMs, sim.config.turnSpacingMs - since))
+    # STOP-INTERRUPTIBLE, because `turn` is called synchronously from inside
+    # the tick loop and the engine's wall-clock stop is checked at the TOP of
+    # that loop (server.nim): a single 12 s `os.sleep` here holds the stop off
+    # for a whole spacing floor. Sleep in 100 ms slices and abandon the floor
+    # the moment the episode's own budget is spent, so the overshoot is one
+    # turn's LLM cost rather than one turn plus one full floor. The budget
+    # guard above normally switches the LLM off two turns before this can
+    # matter; this is the backstop for when it does not.
+    const SpacingSliceMs = 100
+    let
+      waitUntil = engine.lastBatchStart +
+        initDuration(milliseconds = sim.config.turnSpacingMs)
+      stopAt = turnStart + initDuration(
+        seconds = max(0, sim.config.wallClockBudgetSeconds - elapsedSeconds))
+    while getMonoTime() < stopAt:
+      let remaining = (waitUntil - getMonoTime()).inMilliseconds.int
+      if remaining <= 0:
+        break
+      sleep(min(SpacingSliceMs, remaining))
   if open.len > 0:
     engine.lastBatchStart = getMonoTime()
     engine.batchStarted = true
