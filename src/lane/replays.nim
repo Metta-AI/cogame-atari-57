@@ -617,15 +617,6 @@ proc replayScanTicksPerFrame*(sim: SimServer): int =
   ## slice is the paintbot small-board one.
   96
 
-proc replayScanTicksPerFrameUnused(sim: SimServer): int =
-  ## Deterministic scan slice per presentation frame (frame-counted, no
-  ## clock reads — machine speed must not change what any frame contains).
-  ## Big boards OR big rosters step ~10x slower than the classic arena,
-  ## so their slice is smaller to protect the frame budget; small boards
-  ## finish their walk within a couple of seconds of playback.
-  if sim.players.len > 16: 24
-  else: 96
-
 proc buildReplayKeyframes*(
   replay: var ReplayPlayer,
   initialSim: SimServer,

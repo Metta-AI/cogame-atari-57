@@ -16,7 +16,7 @@
 ## come out RED + GREEN | clock | BLUE + YELLOW with no edit.
 
 import std/[json, strutils]
-import sim, global, stances
+import sim, global
 
 type
   BroadcastTracker* = object

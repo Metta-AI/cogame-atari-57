@@ -22,7 +22,7 @@
 ## failure mode leaves a lane uncommanded: the autopilot always has a stance —
 ## this turn's, else last turn's, else `arcader`'s.
 
-import std/[json, monotimes, os, strutils, times]
+import std/[monotimes, os, strutils, times]
 import curly
 import sim, stances, baselines, observation, llm
 
