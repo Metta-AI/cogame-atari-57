@@ -325,16 +325,22 @@ jobs:
           # coworld whose whole board fits the frame. DROP THIS FLAG ONLY if
           # the board is pannable, where drawing off-frame is normal -- the
           # count is still reported on stdout and in viewer-smoke.json.
-          # --soak 12 is the FROZEN-PLAYBACK gate: loading is not playing, and a
+          # --soak is the FROZEN-PLAYBACK gate: loading is not playing, and a
           # viewer that draws one frame and then dies still sets
-          # data-replay-loaded. The certification fixture pins
-          # minTicks == maxTicks == 1440 (60 s at 24 Hz), so a 12 s soak cannot
-          # run the replay out.
+          # data-replay-loaded. The soak samples the readouts three times and
+          # the LAST interval has to move, so it must END INSIDE playback.
+          # MEASURED, not assumed: this bundle's rAF loop advances up to six
+          # sim frames per animation frame, so the 1440-tick certification
+          # fixture (nominally 60 s at 24 Hz) runs out in ~10.2 s of wall clock
+          # -- runs 33207297869 and 33209115187 both read "1416 / 1440" at the
+          # 10 s sample and "1441 / 1440" at the 12 s one, i.e. 0.2 s from a
+          # false "frozen" on a faster runner. 8 s samples at 6 s and 8 s,
+          # ~2 s inside playback, and still fails a viewer that stops.
           node tools/ci/viewer_smoke.mjs \
             --bundle dist/static-replay-viewer \
             --replay "${replay}" \
             --timeout 90 \
-            --soak 12 \
+            --soak 8 \
             --strict-text-bounds
 
       # ------------------------------------------------------------------
