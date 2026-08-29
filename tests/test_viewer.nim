@@ -15,11 +15,12 @@ let
   staticReplay = readRepoFile("replay-viewer/static_replay.js")
 
 const
-  ## The starter's `client/chrome_common.js`, byte for byte. It is copied with
-  ## ZERO edits, so this pin is the whole assertion: if it moves, somebody
-  ## edited the shared chrome instead of the appended game block.
+  ## The starter's `client/chrome_common.js` plus the fleet-wide replay
+  ## transport patch (0.5x speed chip + the game's own LANE_WIRE global).
+  ## Nothing else is edited, so this pin is the whole assertion: if it moves,
+  ## somebody edited the shared chrome instead of the appended game block.
   ChromeCommonSha =
-    "7ace7287e0d19bf0fddb2362c55e4d76dfb44adcd4fbc8d1743b0557ced72f7c"
+    "7be694be28db0f8a9d20e1309cf0f152ce71f681125c3c1b691657915951c6d0"
   Banner = "atari-57 additions to the inherited coworld-ctf chrome"
 
 proc sha256Hex(text: string): string =
@@ -35,11 +36,12 @@ proc testChromeCommonIsByteIdentical() =
   let got = sha256Hex(chrome)
   check(got == ChromeCommonSha,
         &"client/chrome_common.js sha256 is {got}, the pin says " &
-        &"{ChromeCommonSha}. It is copied byte-for-byte from coworld-ctf: " &
-        "put your change in the appended game block instead.")
+        &"{ChromeCommonSha}. It is coworld-ctf's copy plus ONLY the " &
+        "fleet-wide replay transport patch: put your change in the appended " &
+        "game block instead.")
   check(chrome.contains("TEAM_ORDER = ['red', 'blue', 'green', 'yellow']"),
         "chrome_common no longer pins the four-team order the plates need")
-  report("chrome_common.js is byte-identical to the starter's copy")
+  report("chrome_common.js is the starter's copy plus the transport patch")
 
 proc testTransportContract() =
   ## relayout() still owns --hudscale / --topband / --band on :root, the
@@ -229,9 +231,10 @@ proc testBubbleBand() =
 
 proc testNoStarterIdentifiers() =
   ## No `ctf_` / `CTF_` / `paintball` identifier survives in client/,
-  ## replay-viewer/ or src/ — EXCEPT the one `window.CTF_WIRE` read inside
-  ## chrome_common.js, which is copied byte-for-byte from the starter and is
-  ## sha-pinned above. Every value it falls back to is already this game's.
+  ## replay-viewer/ or src/. chrome_common.js (sha-pinned above) now reads
+  ## this game's own `window.LANE_WIRE` — the fleet-wide replay transport
+  ## patch retargeted the starter's `CTF_WIRE` lookup, which never resolved
+  ## here. Every value it falls back to is already this game's.
   const files = [
     "client/replay_broadcast.html", "client/league_replayer.html",
     "client/broadcast_core.js", "replay-viewer/atari57_replay.nim",

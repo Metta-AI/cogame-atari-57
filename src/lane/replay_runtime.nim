@@ -123,7 +123,7 @@ proc buildReplayViewerPacket*(
     sim.buildStateJson(
       events,
       replay.playing,
-      replay.replaySpeed(),
+      replay.replayDisplaySpeed(),
       replay.replayMaxTick(),
       replay.looping,
       true,

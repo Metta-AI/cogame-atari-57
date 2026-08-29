@@ -110,7 +110,7 @@ proc testAliasesInGameRealNamesSpectatorSide() =
   # Spectator side: real names, in the roster, the results and the endcard.
   game.finishGame(ReasonComplete, EndRuleFullTime)
   let chromeFrame = game.buildStateJson(
-    newJArray(), true, 1, 2880, false, true, -1, -1)
+    newJArray(), true, 1.0, 2880, false, true, -1, -1)
   for name in RealNames:
     check(chromeFrame.contains(name),
           &"the chrome roster does not carry the real name {name}")

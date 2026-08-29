@@ -875,7 +875,7 @@ proc runServerLoop*(
             built.addSprite(
               BroadcastChromeSpriteId, 1, 1, [0'u8, 0, 0, 0],
               game.buildStateJson(
-                frameEvents, true, 1, config.maxTicks, false, false, -1, -1))
+                frameEvents, true, 1.0, config.maxTicks, false, false, -1, -1))
           built
       if packet.len == 0:
         continue

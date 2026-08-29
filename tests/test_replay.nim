@@ -230,10 +230,36 @@ proc testReplaySummary() =
   check(sawAccent, "the non-ASCII say did not survive the round trip")
   report("replay_summary.py emits strict UTF-8 JSON with the results embedded")
 
+proc testHalfSpeedIsAReplayOnlyCrawl() =
+  ## The fleet-wide 1/2x replay speed: command '5' selects
+  ## ReplayHalfSpeedIndex, the chrome shows 0.5, and the step budget spends
+  ## one tick every OTHER frame (halfPhase parity) outside lulls.
+  var replay = ReplayPlayer()
+  replay.speedIndex = 0
+  applySpeedCommand(replay.speedIndex, '5')
+  check(replay.speedIndex == ReplayHalfSpeedIndex, "'5' must select 1/2x")
+  check(replay.replayDisplaySpeed() == 0.5,
+        "the chrome speed at 1/2x is 0.5, got " & $replay.replayDisplaySpeed())
+  check(replay.replaySpeed() == 1,
+        "the integer speed clamps to 1x at 1/2x (live loop safety)")
+  replay.skipLulls = false
+  replay.halfPhase = false
+  check(replay.replayStepBudget(0) == 0, "even frame at 1/2x spends no tick")
+  replay.halfPhase = true
+  check(replay.replayStepBudget(0) == 1, "odd frame at 1/2x spends one tick")
+  applySpeedCommand(replay.speedIndex, '+')
+  check(replay.speedIndex == 0, "'+' from 1/2x lands on 1x")
+  applySpeedCommand(replay.speedIndex, '-')
+  check(replay.speedIndex == ReplayHalfSpeedIndex, "'-' from 1x lands on 1/2x")
+  applySpeedCommand(replay.speedIndex, '-')
+  check(replay.speedIndex == ReplayHalfSpeedIndex, "1/2x is the floor")
+  report("'5' is a replay-only crawl: 0.5 shown, one tick every other frame")
+
 when isMainModule:
   echo "test_replay"
   testEveryRomRoundTrips()
   testEveryEndReason()
   testRecordStream()
   testReplaySummary()
+  testHalfSpeedIsAReplayOnlyCrawl()
   echo "test_replay OK"
