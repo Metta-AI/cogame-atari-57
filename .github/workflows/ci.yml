@@ -107,6 +107,9 @@ jobs:
           cat nim.cfg
           echo "::endgroup::"
 
+      - name: Exercise training bridge across all ROMs
+        run: python3 tests/test_training_bridge.py
+
       - name: Run tests
         # Every tests/*.nim runs twice: debug (range/overflow checks, stack
         # traces) and -d:release (release-only compile errors and codegen bugs
