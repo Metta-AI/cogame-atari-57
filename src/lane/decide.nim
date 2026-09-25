@@ -22,24 +22,37 @@
 ## failure mode leaves a lane uncommanded: the autopilot always has a stance —
 ## this turn's, else last turn's, else `arcader`'s.
 
-import std/[monotimes, os, strutils, times]
-import curly
-import sim, stances, baselines, observation, llm
+import std/[json, monotimes, os, times]
+import sim, stances, baselines, observation
 
 type
+  BatchCall* = object
+    seat*: int
+    view*: string
+    retry*: bool
+
+  BatchReply* = object
+    seat*: int
+    ok*: bool
+    action*: string
+    cause*: string
+    error*: string
+
+  BatchFn* = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
+    {.closure, gcsafe.}
+
   SeatPolicy* = object
     ## What one seat registered as. A seat that registers with neither field —
     ## or never registers at all — is `arcader`, and is LOGGED LOUDLY
     ## (server edit 6), because a silently-lost register packet is otherwise
     ## indistinguishable from an LLM that chose badly.
     isLlm*: bool
-    prompt*: string
     baseline*: Baseline
     label*: string
     registered*: bool
 
   DecisionEngine* = object
-    client*: LlmClient
+    batch*: BatchFn
     seats*: seq[SeatPolicy]
     stances*: seq[LaneStance]
     haveStance*: seq[bool]
@@ -49,7 +62,6 @@ type
     records*: seq[string]
 
 proc initDecisionEngine*(sim: SimServer): DecisionEngine =
-  result.client = newLlmClient(sim.config)
   result.seats = newSeq[SeatPolicy](4)
   result.stances = newSeq[LaneStance](4)
   result.haveStance = newSeq[bool](4)
@@ -109,7 +121,6 @@ proc turn*(
     budget = initDuration(milliseconds = max(1, sim.config.turnBudgetMs))
     turnStart = getMonoTime()
   ## Throttle state is PER TURN: a 429 on turn k says nothing about turn k+1.
-  engine.client.throttled = false
 
   # --- budget guard: settle EARLY rather than overrun ----------------------
   # If two more full turns (batch spacing included) would not fit inside the
@@ -137,7 +148,7 @@ proc turn*(
       engine.stances[seat] = stance
       engine.haveStance[seat] = true
     elif engine.seats[seat].isLlm and not engine.llmOff and
-        not engine.client.disabled:
+        not engine.batch.isNil:
       open.add(seat)
     elif engine.seats[seat].isLlm:
       # An LLM seat that CANNOT call the LLM this turn is a FALLBACK, not a
@@ -146,7 +157,7 @@ proc turn*(
       stance.source = stFallback
       engine.stances[seat] = stance
       engine.haveStance[seat] = true
-      let cause = if engine.llmOff: "budget_guard" else: "no_credentials"
+      let cause = if engine.llmOff: "budget_guard" else: "transport_error"
       result.add(fallbackRecord(turnIndex, seat, 1, cause,
         "the LLM is unavailable for this turn; playing arcader"))
       echo "atari-57 llm: seat ", seat, " falling back to arcader (", cause,
@@ -188,9 +199,9 @@ proc turn*(
 
   # --- up to two PARALLEL batches -----------------------------------------
   var attempt = 0
+  var lastCause = newSeq[string](engine.seats.len)
+  var failFast: seq[int]
   while open.len > 0 and attempt < 2:
-    if engine.client.disabled:
-      break
     if getMonoTime() - turnStart >= budget:
       for seat in open:
         result.add(fallbackRecord(
@@ -199,33 +210,26 @@ proc turn*(
       break
     let deadlineMs =
       if attempt == 0: sim.config.attempt1Ms else: sim.config.retryMs
-    var batch: RequestBatch
+    var calls: seq[BatchCall]
     for seat in open:
-      var user = laneViewJson(
-        sim, seat, turnIndex, turnsPerEpisode,
-        engine.stances[seat], engine.haveStance[seat])
-      if attempt > 0:
-        user.add("\n\nYour previous reply was not usable. Reply with ONLY " &
-          "the JSON object described above, starting with '{'.")
-      let request = engine.client.requestFor(
-        SystemPrompt, userMessage(engine.seats[seat].prompt, user))
-      batch.post(request.url, request.headers, request.body, $seat)
+      calls.add BatchCall(
+        seat: seat,
+        view: laneViewJson(sim, seat, turnIndex, turnsPerEpisode,
+          engine.stances[seat], engine.haveStance[seat]),
+        retry: attempt > 0)
     let started = getMonoTime()
-    # curly hands the deadline to CURLOPT_TIMEOUT, whose granularity is WHOLE
-    # SECONDS and whose conversion FLOORS — which is why every deadline in
-    # this game is a whole number of seconds (9 000 / 5 000 inside 16 000).
-    let responses = engine.client.curl.makeRequests(
-      batch, max(1, deadlineMs div 1000))
+    let replies = engine.batch(calls, max(1, deadlineMs div 1000))
     let latency = (getMonoTime() - started).inMilliseconds.int
     var stillOpen: seq[int]
     for position, seat in open:
       var cause = "parse_error"
       try:
-        let text = engine.client.textOf(
-          responses[position].response, responses[position].error,
-          batch[position].url)
+        let reply = replies[position]
+        if not reply.ok:
+          cause = if reply.cause.len > 0: reply.cause else: "transport_error"
+          raise newException(ValueError, reply.error)
         var stance = parseLaneStance(
-          extractJsonObject(text), engine.stances[seat],
+          parseJson(reply.action), engine.stances[seat],
           engine.haveStance[seat])
         stance.source = stLlm
         stance.latencyMs = latency
@@ -233,40 +237,30 @@ proc turn*(
         engine.stances[seat] = stance
         engine.haveStance[seat] = true
       except CatchableError as error:
-        if responses[position].error.len > 0:
-          cause = (if "timeout" in responses[position].error.toLowerAscii():
-                     "timeout" else: "transport_error")
-        elif error.msg.startsWith("llm throttled"):
-          ## Name the throttle for what it is: reporting a 429 as
-          ## `parse_error` is what once made a hosted log unreadable.
-          cause = "throttled"
         result.add(fallbackRecord(turnIndex, seat, attempt + 1, cause,
                                   error.msg))
+        lastCause[seat] = cause
         echo "atari-57 llm: seat ", seat, " attempt ", attempt + 1,
           " failed, will retry if a retry is left: ", error.msg
         stillOpen.add(seat)
     open = stillOpen
     inc attempt
-    if engine.client.throttled and open.len > 0:
-      # FAIL FAST. The only model left answered 429, so the retry batch would
-      # be refused the same way: spend the rest of the turn on the scripted
-      # layer instead of on a call that cannot land.
-      echo "atari-57 llm: provider throttled with no other candidate; ",
-        open.len, " seat(s) fall back for turn ", turnIndex
-      break
+    var retryable: seq[int]
+    for seat in open:
+      if lastCause[seat] in ["throttled", "no_credentials"]:
+        failFast.add(seat)
+      else:
+        retryable.add(seat)
+    open = retryable
 
   # --- anything still open plays arcader for this turn ---------------------
+  open.add(failFast)
   for seat in open:
     var stance = engine.arcaderFor(sim, seat)
     stance.source = stFallback
     engine.stances[seat] = stance
     engine.haveStance[seat] = true
-    let cause =
-      if engine.client.disabled or engine.client.transport == ltNone:
-        "no_credentials"
-      elif engine.llmOff: "budget_guard"
-      elif engine.client.throttled: "throttled"
-      else: "parse_error"
+    let cause = if lastCause[seat].len > 0: lastCause[seat] else: "timeout"
     result.add(fallbackRecord(turnIndex, seat, 2, cause,
       "seat fell back to the arcader stance"))
     ## "falling back" is the phrase phase 60 greps the GAME log for.

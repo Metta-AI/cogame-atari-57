@@ -50,7 +50,7 @@ proc waitForHealth(seconds: int): bool =
 
 proc registration(scripted: string): string =
   blobFromSpriteChat($(%*{
-    "type": "register", "prompt": "", "scripted": scripted,
+    "type": "register", "kind": "scripted", "scripted": scripted,
     "policy": "test-" & scripted}))
 
 proc readyPacket(): string =

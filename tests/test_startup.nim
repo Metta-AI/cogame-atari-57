@@ -3,7 +3,9 @@
 ## really does carry both binaries.
 
 import std/[json, os, osproc, strformat, strutils]
+import curly
 import lane_helpers
+import lane/[llm, sim_config]
 
 proc buildEntrypoint(): string =
   ## Compiles the real `/bin/atari-57` entrypoint and returns its path. The
@@ -125,9 +127,10 @@ proc testBothBinariesAreBuiltAndCopied() =
   check(dockerfile.contains("COPY --from=build /workspace/atari57/client ./client"),
         "the runtime stage does not carry the client art")
   let policies = parseJson(readRepoFile("tools/ci/policies.json"))
-  check(policies.len == 4, &"{policies.len} policies, not 4")
+  check(policies.len == 5, &"{policies.len} policies, not 5")
   var prompts = 0
   var scripted = 0
+  var jev = 0
   for policy in policies:
     check(policy{"run"}.getStr() == "/bin/atari-57-player",
           "a policy does not run the player entrypoint")
@@ -141,12 +144,38 @@ proc testBothBinariesAreBuiltAndCopied() =
       inc scripted
       check(policy{"env"}{"PLAYER_SCRIPTED"}.getStr() in ["arcader", "hoover"],
             "a filler names an unpublished baseline")
+    if policy{"env"}.hasKey("PLAYER_JEV"):
+      inc jev
+      check(policy{"env"}{"PLAYER_JEV"}.getStr() == "true",
+            "the Jev player flag is invalid")
   check(prompts == 2, &"{prompts} PLAYER_PROMPT champions, not 2")
   check(scripted == 2, &"{scripted} PLAYER_SCRIPTED fillers, not 2")
+  check(jev == 1, &"{jev} Jev players, not 1")
   check(policies[1]{"player"}.getStr() ==
           "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d",
         "champion #2 does not carry the daveey-1 player id")
-  report("both entrypoints are built and copied; four policies, two prompts")
+  report("both entrypoints are built; five policies include Jev")
+
+proc testHostedPromptRoute() =
+  let oldEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
+  let oldModel = getEnv("BEDROCK_MODEL")
+  putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "http://127.0.0.1:9100/")
+  putEnv("BEDROCK_MODEL", "anthropic/claude-haiku-4.5")
+  let request = newLlmClient(defaultGameConfig()).requestFor("rules", "private view")
+  check(request.url == "http://127.0.0.1:9100/v1/messages",
+        "the hosted prompt bypasses the model sidecar")
+  check(request.headers["anthropic-version"] == "2023-06-01",
+        "the Anthropic Messages version is missing")
+  check(request.headers["authorization"].len == 0 and
+        request.headers["x-api-key"].len == 0,
+        "the sidecar request carries a provider credential")
+  let body = parseJson(request.body)
+  check(body["model"].getStr() == "anthropic/claude-haiku-4.5" and
+        not body.hasKey("anthropic_version"),
+        "the hosted player did not use the uploaded model")
+  putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", oldEndpoint)
+  putEnv("BEDROCK_MODEL", oldModel)
+  report("hosted prompt uses the model sidecar's Anthropic Messages route")
 
 when isMainModule:
   echo "test_startup"
@@ -156,4 +185,5 @@ when isMainModule:
   testUnknownRomExitsCleanly()
   testSeedIsPinnedAndRandomised()
   testBothBinariesAreBuiltAndCopied()
+  testHostedPromptRoute()
   echo "test_startup OK"

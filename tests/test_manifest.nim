@@ -172,18 +172,24 @@ proc testGameBlock() =
   check(game{"runnable"}{"type"}.getStr() == "game", "runnable.type is not game")
   check(game{"runnable"}{"run"}[0].getStr() == "/bin/atari-57",
         "the game entrypoint is wrong")
-  check(game{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.getStr() ==
-          "secret://coworld/atari-57/anthropic_api_key",
-        "the hosted game pod would never receive the secret")
+  check(not game{"runnable"}.hasKey("env"),
+        "the game container must not receive model credentials")
   for key in ["player", "global"]:
     let proto = game{"protocols"}{key}
     check(proto.kind == JObject, &"protocols.{key} is not an object")
     check(proto{"type"}.getStr() == "text", &"protocols.{key}.type is not text")
     check(proto{"value"}.getStr().len > 200, &"protocols.{key} is trivial")
+  let playerWire = game{"protocols"}{"player"}{"value"}.getStr()
+  check(playerWire.contains("\"kind\":\"prompt\"") and
+        playerWire.contains("\"type\":\"decision\"") and
+        playerWire.contains("\"type\":\"action\""),
+        "inline player protocol omits the policy decision wire")
   check(game{"docs"}{"readme"}{"type"}.getStr() == "text",
         "docs.readme is not a text object")
   check(game{"docs"}{"readme"}{"value"}.getStr().len > 400,
         "docs.readme is trivial")
+  check(game{"docs"}{"readme"}{"value"}.getStr() == readRepoFile("README.md"),
+        "inline README differs from the source")
   check(game{"docs"}{"pages"}.len == 3, "docs.pages is not three pages")
   for page in game{"docs"}{"pages"}:
     check(page{"id"}.getStr().len > 0, "a docs page has no id")
@@ -193,17 +199,14 @@ proc testGameBlock() =
     let pageId = page{"id"}.getStr()
     check(page{"content"}{"value"}.getStr().len > 400,
           &"docs page {pageId} is trivial")
+    let source = case pageId
+      of "rules.md": "docs/RULES.md"
+      of "protocol.md": "docs/PROTOCOL.md"
+      of "stances.md": "docs/STANCES.md"
+      else: raise newException(ValueError, "Unknown docs page: " & pageId)
+    check(page{"content"}{"value"}.getStr() == readRepoFile(source),
+          &"inline {pageId} differs from the source")
   report("game block: description, tags, owner, protocols, docs, bundle")
-
-proc testSecretNamespaceEqualsGameName() =
-  ## The `secret://coworld/<ns>/…` namespace must equal `game.name` EXACTLY
-  ## (cooperative-hunting, 2026-08-25), or upload 400s after a green certify.
-  let uri = manifest{"game"}{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.getStr()
-  let parts = uri.split('/')
-  check(parts.len == 5, &"the secret URI has an unexpected shape: {uri}")
-  check(parts[3] == manifest{"game"}{"name"}.getStr(),
-        &"the secret namespace {parts[3]} is not game.name")
-  report("the secret namespace equals game.name")
 
 proc testImagePlaceholderMatchesCompose() =
   ## Placeholders are DERIVED from compose SERVICE names by uppercasing and
@@ -292,7 +295,6 @@ when isMainModule:
   testResultsDocumentValidates()
   testConfigSchema()
   testGameBlock()
-  testSecretNamespaceEqualsGameName()
   testImagePlaceholderMatchesCompose()
   testVariantsShareTheClock()
   testCertFixtureShape()

@@ -27,7 +27,7 @@ set -uo pipefail
 
 BASE="${1:?usage: check_gameversion.sh <base-ref> [head-ref]}"
 HEAD_REF="${2:-HEAD}"
-CONST_FILE="src/ctf/sim_types.nim"
+CONST_FILE="src/lane/sim_types.nim"
 
 line() {
   # The GameVersion declaration line from one ref, or empty if unreadable.

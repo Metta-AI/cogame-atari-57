@@ -42,7 +42,7 @@ import
   bitworld/client as bitworldClient, bitworld/spriteprotocol, bitworld/runtime,
   mummy,
   sim, global, replays, broadcast, replay_runtime, events, wire_constants,
-  control, stances, baselines, decide
+  control, stances, baselines, decide, llm
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -61,6 +61,8 @@ type
     loadingReplayUri: string
     currentReplayUri: string
     chatMessages: Table[WebSocket, string]
+    actionMessages: Table[WebSocket, string]
+    nextDecisionId: int
     playerIndices: Table[WebSocket, int]
     playerAddresses: Table[WebSocket, string]
     playerSlots: Table[WebSocket, int]
@@ -131,6 +133,8 @@ proc markSocketClosed(websocket: WebSocket): bool =
 proc initAppState() =
   initLock(appState.lock)
   appState.chatMessages = initTable[WebSocket, string]()
+  appState.actionMessages = initTable[WebSocket, string]()
+  appState.nextDecisionId = 0
   appState.playerIndices = initTable[WebSocket, int]()
   appState.playerAddresses = initTable[WebSocket, string]()
   appState.playerSlots = initTable[WebSocket, int]()
@@ -150,6 +154,7 @@ proc removePlayerWebSocketState(websocket: WebSocket): int =
     result = appState.playerIndices[websocket]
     appState.playerIndices.del(websocket)
   appState.chatMessages.del(websocket)
+  appState.actionMessages.del(websocket)
   appState.playerAddresses.del(websocket)
   appState.playerSlots.del(websocket)
   appState.playerTokens.del(websocket)
@@ -396,6 +401,11 @@ proc websocketHandler(
               message.data, mask, pressed, chatText)
             if chatText.len > 0:
               appState.chatMessages[websocket] = chatText
+    elif message.kind == TextMessage:
+      {.gcsafe.}:
+        withLock appState.lock:
+          if websocket.isPlayerWebSocket() and not appState.replayLoaded:
+            appState.actionMessages[websocket] = message.data
   of ErrorEvent, CloseEvent:
     var who = ""
     {.gcsafe.}:
@@ -455,9 +465,10 @@ proc declarePlayerFailure(slot: int, message: string) =
 
 proc parseRegistration(
   text: string
-): tuple[ok: bool, prompt, scripted, policy: string] =
+): tuple[ok: bool, kind, scripted, policy: string] =
   ## A seat's ONE Sprite v1 chat message, read as its registration:
-  ##   {"type":"register","prompt":"…","scripted":"arcader"|null,"policy":"…"}
+  ##   {"type":"register","kind":"prompt|jev|scripted",
+  ##    "scripted":"arcader"|null,"policy":"…"}
   ## Anything that is not that object is not a registration.
   result = (false, "", "", "")
   if text.len == 0 or text[0] != '{':
@@ -470,10 +481,77 @@ proc parseRegistration(
   if node.kind != JObject or node{"type"}.getStr() != "register":
     return
   result.ok = true
-  result.prompt = node{"prompt"}.getStr()
+  result.kind = node{"kind"}.getStr()
   if not node{"scripted"}.isNil and node{"scripted"}.kind == JString:
     result.scripted = node{"scripted"}.getStr()
   result.policy = node{"policy"}.getStr()
+
+proc playerBatch(
+  seatSockets: array[4, WebSocket],
+  seatConnected: array[4, bool]
+): BatchFn =
+  result = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
+      {.closure, gcsafe.} =
+    result = newSeq[BatchReply](calls.len)
+    var requestId: int
+    {.gcsafe.}:
+      withLock appState.lock:
+        inc appState.nextDecisionId
+        requestId = appState.nextDecisionId
+        for call in calls:
+          if seatConnected[call.seat]:
+            appState.actionMessages.del(seatSockets[call.seat])
+    for position, call in calls:
+      result[position].seat = call.seat
+      if not seatConnected[call.seat]:
+        result[position].error = "player disconnected"
+        continue
+      try:
+        seatSockets[call.seat].send($( %*{
+          "type": "decision", "id": requestId, "seat": call.seat,
+          "view": parseJson(call.view), "system": SystemPrompt,
+          "retry": call.retry, "timeout_seconds": timeoutSeconds
+        }), TextMessage)
+      except CatchableError as error:
+        result[position].error = error.msg
+    let deadline = getMonoTime() + initDuration(seconds = timeoutSeconds)
+    while getMonoTime() < deadline:
+      var pending = false
+      for position, call in calls:
+        if result[position].ok or result[position].error.len > 0:
+          continue
+        var raw = ""
+        {.gcsafe.}:
+          withLock appState.lock:
+            let socket = seatSockets[call.seat]
+            if appState.actionMessages.hasKey(socket):
+              raw = appState.actionMessages[socket]
+              appState.actionMessages.del(socket)
+        if raw.len == 0:
+          pending = true
+          continue
+        try:
+          let answer = parseJson(raw)
+          if answer{"type"}.getStr() != "action" or
+              answer{"id"}.getInt() != requestId:
+            pending = true
+            continue
+          if answer.hasKey("action") and answer["action"].kind == JObject:
+            result[position].ok = true
+            result[position].action = $answer["action"]
+          else:
+            result[position].error = answer{"error"}.getStr("player fallback")
+            result[position].cause = answer{"cause"}.getStr("transport_error")
+        except CatchableError:
+          result[position].cause = "parse_error"
+          result[position].error = "invalid player response"
+      if not pending:
+        break
+      sleep(10)
+    for reply in result.mitems:
+      if not reply.ok and reply.error.len == 0:
+        reply.cause = "timeout"
+        reply.error = "player response timed out"
 
 proc comparePendingPlayerJoins(a, b: PendingPlayerJoin): int =
   result = cmp(a.slotIndex, b.slotIndex)
@@ -582,6 +660,8 @@ proc runServerLoop*(
       replayCommands: seq[char] = @[]
       replaySeekTicks: seq[int] = @[]
       cmds = newSeq[uint8](4)
+      seatSockets: array[4, WebSocket]
+      seatConnected: array[4, bool]
 
     # --- edit 4: the engine's own hard stop, checked before anything else ---
     if laneMode and not game.stopped and game.phase == Playing and
@@ -693,6 +773,9 @@ proc runServerLoop*(
             continue
           sockets.add(websocket)
           playerViewerStates.add(appState.playerViewers[websocket])
+          if playerIndex >= 0 and playerIndex < 4:
+            seatSockets[playerIndex] = websocket
+            seatConnected[playerIndex] = true
           ## EDIT 1: seats send NO inputs. Any mask arriving on a player
           ## socket is discarded; every action byte comes from the control
           ## layer below.
@@ -715,8 +798,7 @@ proc runServerLoop*(
             var policy = engine.seats[playerIndex]
             let firstRegistration = not policy.registered
             policy.registered = true
-            policy.prompt = registration.prompt.truncateRunes(MaxPromptRunes)
-            policy.isLlm = policy.prompt.len > 0
+            policy.isLlm = registration.kind in ["prompt", "jev"]
             policy.baseline = parseBaseline(registration.scripted)
             policy.label =
               if registration.policy.len > 0: registration.policy
@@ -767,6 +849,7 @@ proc runServerLoop*(
               ## badly (grf-football round 2, 2026-08-27).
               echo "ERROR: SEAT ", seat, " NEVER REGISTERED — playing arcader"
               game.seatPolicyKind[seat] = "scripted"
+        engine.batch = playerBatch(seatSockets, seatConnected)
         let records = engine.turn(
           game, turnIndex, config.turnsPerEpisode(), elapsedSeconds)
         for record in records:

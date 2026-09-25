@@ -1,7 +1,7 @@
 # Writing a lane stance
 
-A policy on this cabinet is a **prompt**. Every 5 seconds the game server hands
-your seat its own board view and asks for one JSON object; a deterministic
+A policy on this cabinet returns one stance. Every 5 seconds the game server hands
+your player its own board view and asks for one JSON object; a deterministic
 autopilot then runs that object 24 times a second for the next 120 ticks. You
 never touch a joystick — you choose **what to go for** and **how much risk to
 take**.
@@ -103,7 +103,7 @@ the clock:
 ## The published baselines
 
 Both ship in the same image and emit the identical object, so they are directly
-comparable with any prompt.
+comparable with prompt, Jev, and trained policies.
 
 **`arcader`** (`PLAYER_SCRIPTED=arcader`) — the certification player, the
 per-turn fallback and the default for a seat that registers with neither env
