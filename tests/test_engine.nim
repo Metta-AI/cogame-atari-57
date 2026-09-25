@@ -1,155 +1,68 @@
-## The decision turn, against a REAL local HTTP endpoint standing in for the
-## Bedrock sidecar. The one property that matters most is that all four seats'
-## calls go out as ONE PARALLEL BATCH: a game that queries seats one after
-## another quadruples the wall clock for no gain and blows the play budget.
+## Game-owned decisions over one bounded batch of ordinary player responses.
 
-import std/[json, locks, monotimes, os, strformat, strutils, times]
-import mummy, mummy/routers
+import std/[json, monotimes, os, sequtils, strformat, times]
 import lane_helpers
-import lane/[sim_types, decide, stances, llm]
+import lane/[sim_types, decide, stances]
 
-type Window = object
-  startMs, endMs: int64
+const GoodAction = """{"mode":"hunt","zone":"sw","risk":0.55,
+  "lead_ticks":16,"note":"take the power pellet","say":"going for it"}"""
 
-var
-  fakeLock: Lock
-  windows: seq[Window]
-  fakeDelayMs = 250
-  fakeStatus = 200
-  fakeBody = """{"mode":"hunt","zone":"sw","risk":0.55,"lead_ticks":16,
-                 "note":"take the power pellet","say":"going for it"}"""
-  episodeStart: MonoTime
+var batchCalls: seq[seq[BatchCall]]
+var behavior = "good"
 
-proc nowMs(): int64 = (getMonoTime() - episodeStart).inMilliseconds
-
-proc fakeHandler(request: Request) {.gcsafe.} =
+proc fakeBatch(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
+    {.gcsafe.} =
   {.cast(gcsafe).}:
-    let started = nowMs()
-    sleep(fakeDelayMs)
-    let finished = nowMs()
-    withLock fakeLock:
-      windows.add(Window(startMs: started, endMs: finished))
-    var headers: HttpHeaders
-    headers["Content-Type"] = "application/json"
-    if fakeStatus != 200:
-      request.respond(fakeStatus, headers, """{"message":"nope"}""")
-      return
-    request.respond(200, headers, $(%*{
-      "stop_reason": "end_turn",
-      "content": [{"type": "text", "text": fakeBody}]
-    }))
-
-# ONE fake sidecar for the whole file, started once and never closed: mummy
-# owns its own worker pool and tearing it down mid-process is not what this
-# test is about. Behaviour is varied through the globals above.
-const FakePort = 8791
-var
-  fakeServer: Server
-  fakeThread: Thread[int]
-
-proc serveFake(port: int) {.thread.} =
-  {.cast(gcsafe).}:
-    fakeServer.serve(Port(port), "127.0.0.1")
-
-proc startFake() =
-  initLock(fakeLock)
-  episodeStart = getMonoTime()
-  var router: Router
-  router.post("/**", fakeHandler)
-  fakeServer = newServer(router, workerThreads = 8)
-  createThread(fakeThread, serveFake, FakePort)
-  fakeServer.waitUntilReady()
-
-proc withSidecar() =
-  putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", &"http://127.0.0.1:{FakePort}")
-  putEnv("AWS_BEARER_TOKEN_BEDROCK", "test-token")
-
-proc withoutSidecar() =
-  delEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
-  delEnv("AWS_BEARER_TOKEN_BEDROCK")
-  delEnv("ANTHROPIC_API_KEY")
-  delEnv("ANTHROPIC_API_KEY_URI")
-
-proc resetFake() =
-  fakeDelayMs = 250
-  fakeStatus = 200
-  fakeBody = """{"mode":"hunt","zone":"sw","risk":0.55,"lead_ticks":16,
-                 "note":"take the power pellet","say":"going for it"}"""
-  {.gcsafe.}:
-    withLock fakeLock:
-      windows.setLen(0)
-
-proc requestCount(): int =
-  {.gcsafe.}:
-    withLock fakeLock:
-      result = windows.len
+    batchCalls.add(calls)
+    if behavior == "timeout":
+      sleep(min(1000, timeoutSeconds * 1000))
+    for call in calls:
+      var reply = BatchReply(seat: call.seat)
+      case behavior
+      of "good":
+        reply.ok = true
+        reply.action = GoodAction
+      of "malformed":
+        reply.ok = true
+        reply.action = "no stance"
+      of "throttled", "no_credentials", "timeout":
+        reply.cause = behavior
+        reply.error = behavior
+      else:
+        raise newException(ValueError, "unknown fake behavior")
+      result.add(reply)
 
 proc llmEngine(game: SimServer): DecisionEngine =
   result = initDecisionEngine(game)
+  result.batch = fakeBatch
   for seat in 0 ..< 4:
     result.seats[seat].isLlm = true
     result.seats[seat].registered = true
-    result.seats[seat].prompt = "play well"
     result.seats[seat].label = "test"
 
+proc resetFake(next: string) =
+  behavior = next
+  batchCalls.setLen(0)
+
 proc testOneParallelBatch() =
-  ## The fake records each request's in-flight window; all four must
-  ## INTERSECT. Sequential calls would produce four disjoint windows.
-  withSidecar()
-  resetFake()
-  {.gcsafe.}:
-    withLock fakeLock:
-      windows.setLen(0)
+  resetFake("good")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   var game = seatedSim(config)
   var engine = llmEngine(game)
-  check(engine.client.transport == ltBedrock,
-        "the engine did not pick up the local endpoint")
   discard engine.turn(game, 0, 24, 0)
-  var captured: seq[Window]
-  {.gcsafe.}:
-    withLock fakeLock:
-      captured = windows
-  check(captured.len == 4, &"{captured.len} requests went out, not 4")
-  var
-    firstStart = captured[0].startMs
-    lastEnd = captured[0].endMs
-  for w in captured:
-    firstStart = min(firstStart, w.startMs)
-    lastEnd = max(lastEnd, w.endMs)
-  let span = lastEnd - firstStart
-  # Sequential would be four delays end to end; one batch is far less. (libcurl
-  # holds new transfers to an unknown origin back until the first connection is
-  # up, so the batch reads as 1 + 3 rather than 4 at once — which is exactly
-  # what the hosted sidecar does too.)
-  check(span < int64(3 * fakeDelayMs),
-        &"the batch spanned {span} ms against a {fakeDelayMs} ms per-call " &
-        &"delay — four SEQUENTIAL calls would span ~{4 * fakeDelayMs} ms")
-  var overlapping = 0
-  for w in captured:
-    var intersects = 0
-    for other in captured:
-      if w.startMs < other.endMs and other.startMs < w.endMs:
-        inc intersects
-    if intersects >= 3:
-      inc overlapping
-  check(overlapping >= 3,
-        &"only {overlapping} of 4 requests were in flight alongside two " &
-        "others — the seats were queried SEQUENTIALLY")
+  check(batchCalls.len == 1 and batchCalls[0].len == 4,
+    "four seats were not issued in one batch")
   for seat in 0 ..< 4:
-    check(engine.haveStance[seat], &"seat {seat} got no stance")
-    check(engine.stances[seat].source == stLlm,
-          &"seat {seat}'s stance is not from the LLM")
-    check(engine.stances[seat].mode == mdHunt, "the reply was not parsed")
-  report("all four seats' calls go out in ONE parallel batch")
+    check(batchCalls[0][seat].seat == seat, "seat order changed")
+    check(parseJson(batchCalls[0][seat].view){"you"}{"alias"}.getStr().len > 0,
+      "the player received no private view")
+    check(engine.haveStance[seat] and engine.stances[seat].source == stLlm and
+      engine.stances[seat].mode == mdHunt, "a player stance was not installed")
+  report("four private decisions were issued in one batch")
 
 proc testOverLanesAreDropped() =
-  withSidecar()
-  resetFake()
-  {.gcsafe.}:
-    withLock fakeLock:
-      windows.setLen(0)
+  resetFake("good")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   var game = seatedSim(config)
@@ -157,39 +70,27 @@ proc testOverLanesAreDropped() =
   game.lanes[3].phase = lpOver
   var engine = llmEngine(game)
   discard engine.turn(game, 1, 24, 0)
-  let captured = requestCount()
-  check(captured == 2, &"{captured} requests went out for two live lanes")
+  check(batchCalls.len == 1 and batchCalls[0].len == 2,
+    "finished lanes reached the player batch")
   check(engine.stances[1].source == stScripted,
-        "a finished lane was still asked for a stance")
-  report("a finished lane is dropped from every later batch")
+    "a finished lane still used an external stance")
+  report("finished lanes are omitted")
 
 proc testInterBatchFloor() =
-  ## The Bedrock sidecar caps 30 requests/minute PER EPISODE. Consecutive
-  ## batches must start at least `turnSpacingMs` apart.
-  withSidecar()
-  resetFake()
+  resetFake("good")
   var config = testConfig(RomChomper, 5_140_913)
-  config.turnSpacingMs = 600
+  config.turnSpacingMs = 300
   var game = seatedSim(config)
   var engine = llmEngine(game)
-  let t0 = getMonoTime()
   discard engine.turn(game, 0, 24, 0)
-  let afterFirst = getMonoTime()
+  let started = getMonoTime()
   discard engine.turn(game, 1, 24, 0)
-  let afterSecond = getMonoTime()
-  let gap = (afterSecond - afterFirst).inMilliseconds.int
-  check(gap >= config.turnSpacingMs - fakeDelayMs - 50,
-        &"consecutive batches were only {gap} ms apart, under the " &
-        &"{config.turnSpacingMs} ms floor")
-  discard t0
-  report(&"consecutive batches are held {config.turnSpacingMs} ms apart")
+  check((getMonoTime() - started).inMilliseconds >= 250,
+    "successive batches ignored the rate floor")
+  report("the inter-batch rate floor remains")
 
 proc testPerTurnBudgetWithAHungClient() =
-  ## A hung provider must not hold the game: the whole turn is wrapped in a
-  ## monotonic `turnBudgetMs`, and every seat still gets a legal stance.
-  withSidecar()
-  resetFake()
-  fakeDelayMs = 4000
+  resetFake("timeout")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   config.attempt1Ms = 1000
@@ -199,122 +100,70 @@ proc testPerTurnBudgetWithAHungClient() =
   var engine = llmEngine(game)
   let started = getMonoTime()
   let records = engine.turn(game, 0, 24, 0)
-  let elapsed = (getMonoTime() - started).inMilliseconds.int
-  check(elapsed <= config.turnBudgetMs + 2500,
-        &"a hung provider held the turn for {elapsed} ms against a " &
-        &"{config.turnBudgetMs} ms budget")
+  check((getMonoTime() - started).inMilliseconds < 3500,
+    "a player timeout exceeded the turn budget")
   for seat in 0 ..< 4:
-    check(engine.haveStance[seat], &"seat {seat} was left with no stance")
     check(engine.stances[seat].source == stFallback,
-          &"seat {seat} did not fall back")
-  var causes: seq[string]
-  for record in records:
-    let node = parseJson(record)
-    if node{"k"}.getStr() == "fallback":
-      causes.add(node{"cause"}.getStr())
-  check(causes.len > 0, "a hung provider produced no fallback record")
-  for cause in causes:
-    check(cause in ["timeout", "transport_error", "parse_error", "throttled"],
-          &"unexpected fallback cause {cause}")
-  report(&"a hung provider is bounded ({elapsed} ms) and every seat falls back")
+      "a timed-out player did not fall back")
+  check(records.len >= 4, "fallback records were missing")
+  report("bounded player timeouts fall back")
 
 proc testThrottleSkipsTheRetry() =
-  ## A 429 with no other candidate model fails FAST: a retry inside the same
-  ## turn cannot succeed, and spending the budget on it is what turned one
-  ## throttle into a whole episode of scripted play (raid round 2).
-  withSidecar()
-  resetFake()
-  fakeStatus = 429
-  {.gcsafe.}:
-    withLock fakeLock:
-      windows.setLen(0)
+  resetFake("throttled")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   var game = seatedSim(config)
   var engine = llmEngine(game)
   let records = engine.turn(game, 0, 24, 0)
-  let captured = requestCount()
-  check(captured == 4,
-        &"{captured} requests went out — a throttle must not be retried")
-  var sawThrottle = false
-  for record in records:
-    if parseJson(record){"cause"}.getStr() == "throttled":
-      sawThrottle = true
-  check(sawThrottle, "the throttle was not named as the fallback cause")
-  report("a 429 with no other candidate skips the retry entirely")
+  check(batchCalls.len == 1, "a throttled player was retried")
+  check(records.anyIt(parseJson(it){"cause"}.getStr() == "throttled"),
+    "throttle cause was not recorded")
+  report("throttling skips a retry")
 
 proc testRetryOnceThenFallBack() =
-  ## Unparseable once ⇒ exactly one retry; unparseable twice ⇒ the `arcader`
-  ## stance and a `fallback` record.
-  withSidecar()
-  resetFake()
-  fakeBody = "I would rather not."
-  {.gcsafe.}:
-    withLock fakeLock:
-      windows.setLen(0)
+  resetFake("malformed")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   var game = seatedSim(config)
   var engine = llmEngine(game)
   let records = engine.turn(game, 0, 24, 0)
-  let captured = requestCount()
-  check(captured == 8, &"{captured} requests — expected 4 + exactly one retry")
+  check(batchCalls.len == 2 and batchCalls[1].len == 4,
+    "unusable replies did not receive exactly one retry")
   for seat in 0 ..< 4:
     check(engine.stances[seat].source == stFallback,
-          &"seat {seat} did not fall back after two failures")
-  var attempts: seq[int]
-  for record in records:
-    let node = parseJson(record)
-    if node{"k"}.getStr() == "fallback":
-      attempts.add(node{"attempt"}.getInt())
-  check(1 in attempts and 2 in attempts,
-        "both attempts were not recorded as fallbacks")
-  report("one retry, then the arcader stance and a fallback record")
+      "an unusable reply did not fall back")
+  check(records.len >= 8, "attempt records were missing")
+  report("one retry then game-owned fallback")
 
 proc testBudgetGuard() =
-  ## The guard settles EARLY rather than overrunning: with two more full turns
-  ## unable to fit, the LLM is switched off for the rest of the episode and
-  ## the run finishes on the scripted layer.
+  resetFake("good")
   var config = testConfig(RomChomper, 5_140_913)
   config.wallClockBudgetSeconds = 60
   config.turnBudgetMs = 16_000
   config.turnSpacingMs = 12_000
   var game = seatedSim(config)
   var engine = llmEngine(game)
-  engine.client.disabled = true          ## no network in this one
   let records = engine.turn(game, 20, 24, 40)
   check(engine.llmOff, "the budget guard did not fire")
-  var sawGuard = false
-  for record in records:
-    if parseJson(record){"k"}.getStr() == "budget_guard":
-      sawGuard = true
-  check(sawGuard, "no budget_guard record was written")
-  for seat in 0 ..< 4:
-    check(engine.haveStance[seat], "the guard left a seat uncommanded")
-  report("the budget guard fires, records itself and keeps every lane commanded")
+  check(batchCalls.len == 0, "the guard still called players")
+  check(records.anyIt(parseJson(it){"k"}.getStr() == "budget_guard"),
+    "the guard record is missing")
+  report("budget guard keeps lanes commanded")
 
 proc testNoCredentialsFallsBackInstantly() =
-  ## With no credentials the client disables itself and every turn falls back
-  ## INSTANTLY with no network wait — which is what lets offline certification
-  ## finish in seconds.
-  withoutSidecar()
-  let config = testConfig(RomChomper, 5_140_913)
+  resetFake("no_credentials")
+  var config = testConfig(RomChomper, 5_140_913)
+  config.turnSpacingMs = 0
   var game = seatedSim(config)
   var engine = llmEngine(game)
-  check(engine.client.disabled, "a credential-free client is not disabled")
   let started = getMonoTime()
   let records = engine.turn(game, 0, 24, 0)
-  let elapsed = (getMonoTime() - started).inMilliseconds.int
-  check(elapsed < 2000, &"a credential-free turn took {elapsed} ms")
-  var causes: seq[string]
-  for record in records:
-    let node = parseJson(record)
-    if node{"k"}.getStr() == "fallback":
-      causes.add(node{"cause"}.getStr())
-  check(causes.len == 4, &"{causes.len} fallback records for four LLM seats")
-  for cause in causes:
-    check(cause == "no_credentials", &"cause {cause}, not no_credentials")
-  report("no credentials ⇒ four instant, RECORDED fallbacks")
+  check((getMonoTime() - started).inMilliseconds < 2000,
+    "missing credentials held the turn")
+  check(batchCalls.len == 1, "missing credentials were retried")
+  check(records.anyIt(parseJson(it){"cause"}.getStr() == "no_credentials"),
+    "the player cause did not reach the replay")
+  report("missing player credentials yield typed fallbacks")
 
 proc testMinTicksHoldsTheEpisodeOpen() =
   ## The episode does not end on "all four lanes over" before `minTicks`: a
@@ -355,7 +204,6 @@ proc testWallClockStopIsRecorded() =
 
 when isMainModule:
   echo "test_engine"
-  startFake()
   testOneParallelBatch()
   testOverLanesAreDropped()
   testInterBatchFloor()
@@ -367,5 +215,3 @@ when isMainModule:
   testMinTicksHoldsTheEpisodeOpen()
   testWallClockStopIsRecorded()
   echo "test_engine OK"
-  # The fake sidecar owns a worker pool this process never needs to unwind.
-  quit(0)

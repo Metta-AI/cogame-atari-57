@@ -31,5 +31,13 @@
       "PLAYER_SCRIPTED": "hoover",
       "PLAYER_POLICY_LABEL": "hoover"
     }
+  },
+  {
+    "name": "atari-57-jev",
+    "run": "/bin/atari-57-player",
+    "env": {
+      "PLAYER_JEV": "true",
+      "PLAYER_POLICY_LABEL": "jev"
+    }
   }
 ]

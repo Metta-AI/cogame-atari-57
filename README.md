@@ -22,7 +22,7 @@ and nothing is ever subtracted. Dying is punished by *not keeping* the lives
 term rather than by a negative number — which is what keeps the whole scale
 readable on a scorebug.
 
-## A policy is just a prompt
+## Player policies choose stances
 
 Every 5 seconds (120 ticks) each seat sets one **stance**; a deterministic
 autopilot runs it 24 times a second, doing the pathfinding, the dodging, the
@@ -40,17 +40,28 @@ highest-value thing reachable), `strike` (cash in — the chain, the top brick
 rows, the densest flank), `safe` (keep your distance and still score) and `bank`
 (refuse every trade; you will score slowly and you will not die).
 
-Ship your own by reusing this image and setting `PLAYER_PROMPT`:
+The game sends each seat its private view over the player socket. The player
+returns a stance; the game validates it and runs the autopilot. Reuse the image
+for a hosted prompt policy:
 
 ```bash
 coworld upload-policy coworld-atari-57:latest --name my-atari-57 \
-  --run /bin/atari-57-player --secret-env PLAYER_PROMPT="<your strategy>"
+  --run /bin/atari-57-player --secret-env PLAYER_PROMPT="<your strategy>" \
+  --use-bedrock --bedrock-model anthropic/claude-haiku-4.5
 ```
+
+`PLAYER_JEV=true` fields Jev over the same view and stance wire. Upload that
+policy with `--use-bedrock --bedrock-model typesafe/jev-1.13`. The hosted model
+sidecar serves both policies; local runs can use provider keys.
 
 Two scripted baselines ship in the same image, selected with
 `PLAYER_SCRIPTED`: **`arcader`** (the certification player, the per-turn
 fallback and the default — it clears screens and cashes chains) and
 **`hoover`** (deliberately weaker: it never dodges).
+
+The [training bridge](docs/TRAINING.md) exposes all three ROMs through the
+same observation and action boundary for Metta reinforcement learning (RL),
+PufferLib, and Metta post-training.
 
 ## What a seat can see
 
@@ -75,17 +86,20 @@ is caught at the tick it happens. No pod, no server, no live connection but S3.
 | path | what |
 |---|---|
 | `src/atari57.nim` | the cabinet entrypoint (`/bin/atari-57`) |
-| `src/atari57_player.nim` | the thin seat registrar (`/bin/atari-57-player`) |
+| `src/atari57_player.nim` | the seat registrar and policy decision client (`/bin/atari-57-player`) |
 | `src/lane/sim.nim` | the four-lane container, the tick loop and `stepLane` |
 | `src/lane/{grid,maps,rom,sprites}.nim` | the tile lattice, the three committed maps, the cartridge presets, the sprite behaviours and the `BallFan` table |
 | `src/lane/{stances,control,baselines}.nim` | the reply schema, the autopilot, the two published baselines |
-| `src/lane/{observation,decide,llm}.nim` | the board view, the per-turn parallel batch, the Bedrock/Anthropic transport |
+| `src/lane/{observation,decide}.nim` | the private board view and per-turn player batch |
+| `src/lane/{llm,jev_policy}.nim` | player-side hosted sidecar clients |
+| `src/lane/training_bridge.nim` | headless text and numeric decision bridge |
 | `src/lane/{server,global,broadcast,replays,replay_runtime}.nim` | the mummy server, the board render, the chrome frame, the replay codec and the shared replay runtime |
 | `replay-viewer/atari57_replay.nim` | the wasm entry — the same sim module, re-simulating in the browser |
 | `client/` | the broadcast chrome (`chrome_common.js` is byte-identical to the starter's) |
 | `docs/RULES.md` | every number in the game |
 | `docs/PROTOCOL.md` | the wire protocol |
 | `docs/STANCES.md` | how to write a stance |
+| `docs/TRAINING.md` | numeric RL and text post-training bridge |
 
 Nim module names may not contain `-`, so the sources are `atari57*` while the
 binaries are `/bin/atari-57` and `/bin/atari-57-player`, which is what every

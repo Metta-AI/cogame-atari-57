@@ -5,6 +5,13 @@ The headless bridge runs the shipped simulator and uses the same seat-specific
 game. All four seats choose a stance before each 120-tick turn. The bridge
 supports the `chomper`, `brickfall`, and `gallery` ROMs.
 
+For PufferLib or Metta reinforcement learning (RL), append `--numeric` after
+the ROM. The numeric codec exposes 435 fixed values from that private view and
+51 actions: `0` takes the ordinary `arcader` stance; `1..50` select one of five
+modes and ten zones. The game still parses the selected stance and owns its
+legality, fallback, score, and replay. The codec fixes risk, lead time, and
+fire for actions `1..50`; it does not cover every legal stance.
+
 Build and test from this repository root:
 
 ```bash
@@ -13,6 +20,23 @@ nim c -d:release --path:src --out:/tmp/atari57-training-bridge \
   src/lane/training_bridge.nim
 python3 tests/test_training_bridge.py
 ```
+
+Use these parameters with the generic Coworld `DecisionEnvironment` or
+`recipes/external/coworld.py` from Metta:
+
+```text
+command: [/tmp/atari57-training-bridge, chomper, --numeric]
+observation_size: 435
+actions: 51
+players: 4
+seat: 0
+max_decisions: 700
+```
+
+Replace `chomper` with `brickfall` or `gallery` for the other certified
+variants. A local `DecisionEnvironment` full episode completed on each ROM with
+24, 24, and 12 learner steps respectively. This verifies interface execution,
+not improvement from training. Use a timestep limit for every training run.
 
 From a Metta checkout containing the generic Coworld bridge, collect and
 export seed-separated teacher trajectories:
@@ -34,6 +58,5 @@ uv run --package metta-posttrain metta-posttrain export \
 For `brickfall` or `gallery`, pass the ROM as a second `--bridge-command`
 argument and use separate trajectory and dataset paths. The scripted `arcader`
 baseline supplies protocol-valid labels; this does not establish strong play.
-The stance contains quantized risk and lead values plus categorical controls.
-PufferLib and Metta RL need a fixed numeric observation codec before they can
-train this game through their current generic bridge.
+The text bridge preserves the full stance for Metta post-training and exposes
+the same private observation as the numeric codec.

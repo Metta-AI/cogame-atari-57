@@ -6,18 +6,17 @@ else.**
 
 ## THE PLAYER SOCKET (ws://<game>/player?slot=N&token=T)
 
-A seat sends exactly ONE message that matters and then only receives.
+A seat registers, acknowledges frames, and answers decision requests.
 
 1. REGISTRATION. One Sprite v1 chat frame (0x81), a JSON object:
-     {"type":"register","prompt":"<strategy text or empty>",
+     {"type":"register","kind":"prompt"|"jev"|"scripted",
       "scripted":"arcader"|"hoover"|null,"policy":"<free label>"}
-   `prompt` non-empty makes the seat an LLM seat; `scripted` names a published
+   `prompt` or `jev` makes the seat a model policy; `scripted` names a published
    baseline; a seat that sets neither is `arcader`, and the server LOGS THAT
    LOUDLY. The registration is re-sent for the first ~10 s of frames because a
    seat's slot may not be admissible yet; the server holds an unappliable
-   registration rather than dropping it. `prompt` is capped at 4000 runes at
-   the transport (truncated, never rejected) and is NEVER written to the
-   replay or the results.
+   registration rather than dropping it. The player keeps its prompt private;
+   neither the replay nor the results contains it.
 
 2. FRAMES. One binary Sprite v1 message per tick carrying THIS SEAT'S LANE
    ONLY: its whole 17x17 screen, every tile, every sprite, its avatar, its
@@ -30,9 +29,17 @@ A seat sends exactly ONE message that matters and then only receives.
    server-side by the autopilot, so an input mask arriving on a player socket
    is discarded.
 
-THE DECISION. Every 120 ticks (5.0 s) the GAME server composes this seat's
-board view and asks the seat's policy for one STANCE. The view is the seat's
-own screen as a 17-line ASCII map plus structured `threats`, `targets`,
+4. DECISION. Every 120 ticks (5.0 s) the game sends a JSON WebSocket text
+   message to each model seat:
+
+   `{"type":"decision","id":N,"seat":S,"view":{...},"system":"...","retry":false,"timeout_seconds":N}`
+
+   The player replies with `{"type":"action","id":N,"action":{...}}` or
+   `{"type":"action","id":N,"cause":"throttled","error":"..."}`. The
+   request ID ties each reply to its turn. The game sends all live seats'
+   requests before waiting, bounds the wait, and owns the fallback.
+
+The view is the seat's own screen as a 17-line ASCII map plus structured `threats`, `targets`,
 `zones`, its own counters, and a four-row SCOREBOARD strip carrying every
 rival's {alias, score, lives, screen} and nothing else. The reply is:
 
@@ -97,7 +104,12 @@ so the episode ends `complete/*` rather than `deadline`).
 | `COGAME_METRICS_URI` | optional performance counters |
 | `COGAME_PLAYER_FAILURE_URI` | where a lobby no-show is declared |
 | `COGAME_HOST` / `COGAME_PORT` | the listener |
-| `ANTHROPIC_API_KEY_URI` | `secret://coworld/atari-57/anthropic_api_key` — injected into the GAME pod, which is where every decision happens |
+
+The game pod has no model credential. A hosted prompt player uses
+`AWS_ENDPOINT_URL_BEDROCK_RUNTIME/v1/messages` and the uploaded
+`BEDROCK_MODEL`. Jev uses `/v1/systemone` with its uploaded model. Upload
+model policies with `--use-bedrock`; locally, supply a provider key to the
+player process.
 
 Routes: `GET /healthz`, `GET /player?slot=N&token=T` (websocket),
 `GET /global` (websocket), `GET /replay` (websocket), `GET /client/global`,
