@@ -50,9 +50,7 @@ coworld upload-policy coworld-atari-57:latest --name my-atari-57 \
   --use-bedrock --bedrock-model anthropic/claude-haiku-4.5
 ```
 
-`PLAYER_JEV=true` fields Jev over the same view and stance wire. Upload that
-policy with `--use-bedrock --bedrock-model typesafe/jev-1.13`. The hosted model
-sidecar serves both policies; local runs can use provider keys.
+A hosted prompt player uses the model sidecar; local runs can use provider keys.
 
 Two scripted baselines ship in the same image, selected with
 `PLAYER_SCRIPTED`: **`arcader`** (the certification player, the per-turn
@@ -91,7 +89,7 @@ is caught at the tick it happens. No pod, no server, no live connection but S3.
 | `src/lane/{grid,maps,rom,sprites}.nim` | the tile lattice, the three committed maps, the cartridge presets, the sprite behaviours and the `BallFan` table |
 | `src/lane/{stances,control,baselines}.nim` | the reply schema, the autopilot, the two published baselines |
 | `src/lane/{observation,decide}.nim` | the private board view and per-turn player batch |
-| `src/lane/{llm,jev_policy}.nim` | player-side hosted sidecar clients |
+| `src/lane/llm.nim` | player-side hosted sidecar clients |
 | `src/lane/training_bridge.nim` | headless text and numeric decision bridge |
 | `src/lane/{server,global,broadcast,replays,replay_runtime}.nim` | the mummy server, the board render, the chrome frame, the replay codec and the shared replay runtime |
 | `replay-viewer/atari57_replay.nim` | the wasm entry — the same sim module, re-simulating in the browser |

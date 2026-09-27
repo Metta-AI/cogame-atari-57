@@ -21,7 +21,7 @@ import
   std/[json, options, os, strutils],
   bitworld/spriteprotocol,
   whisky, curly,
-  lane/[jev_policy, llm, sim_config, stances]
+  lane/[llm, sim_config, stances]
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -62,12 +62,10 @@ when isMainModule:
   let
     prompt = getEnv("PLAYER_PROMPT").strip()
     scripted = getEnv("PLAYER_SCRIPTED").strip()
-    jev = getEnv("PLAYER_JEV").strip().toLowerAscii() in ["1", "true"]
-    kind = if jev: "jev" elif prompt.len > 0: "prompt" else: "scripted"
+    kind = if prompt.len > 0: "prompt" else: "scripted"
     label = block:
       let explicit = getEnv("PLAYER_POLICY_LABEL").strip()
       if explicit.len > 0: explicit
-      elif jev: "jev"
       elif prompt.len > 0: "prompt"
       elif scripted.len > 0: scripted
       else: "arcader"
@@ -129,25 +127,20 @@ when isMainModule:
           if decision{"type"}.getStr() == "decision":
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
-            if kind == "prompt" and client.disabled or
-                kind == "jev" and not jevConfigured():
+            if kind == "prompt" and client.disabled:
               reply["cause"] = %"no_credentials"
               reply["error"] = %"no_credentials"
             else:
               try:
-                if kind == "jev":
-                  reply["action"] = chooseJevAction(decision["view"],
-                    decision["seat"].getInt(), timeoutSeconds)
-                else:
-                  var user = userMessage(prompt, $decision["view"])
-                  if decision["retry"].getBool():
-                    user.add("\n\nYour previous reply was unusable. Return only JSON.")
-                  let request = client.requestFor(
-                    decision["system"].getStr(), user)
-                  let response = client.curl.post(request.url,
-                    request.headers, request.body, timeoutSeconds)
-                  reply["action"] = extractJsonObject(
-                    client.textOf(response, "", request.url))
+                var user = userMessage(prompt, $decision["view"])
+                if decision["retry"].getBool():
+                  user.add("\n\nYour previous reply was unusable. Return only JSON.")
+                let request = client.requestFor(
+                  decision["system"].getStr(), user)
+                let response = client.curl.post(request.url,
+                  request.headers, request.body, timeoutSeconds)
+                reply["action"] = extractJsonObject(
+                  client.textOf(response, "", request.url))
               except CatchableError as error:
                 reply["cause"] = %(if client != nil and client.throttled:
                     "throttled" else: "transport_error")

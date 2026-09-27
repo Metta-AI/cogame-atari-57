@@ -9,9 +9,9 @@ else.**
 A seat registers, acknowledges frames, and answers decision requests.
 
 1. REGISTRATION. One Sprite v1 chat frame (0x81), a JSON object:
-     {"type":"register","kind":"prompt"|"jev"|"scripted",
+     {"type":"register","kind":"prompt"|"external"|"scripted",
       "scripted":"arcader"|"hoover"|null,"policy":"<free label>"}
-   `prompt` or `jev` makes the seat a model policy; `scripted` names a published
+   `prompt` or `external` makes the seat a model policy; `scripted` names a published
    baseline; a seat that sets neither is `arcader`, and the server LOGS THAT
    LOUDLY. The registration is re-sent for the first ~10 s of frames because a
    seat's slot may not be admissible yet; the server holds an unappliable
@@ -107,7 +107,7 @@ so the episode ends `complete/*` rather than `deadline`).
 
 The game pod has no model credential. A hosted prompt player uses
 `AWS_ENDPOINT_URL_BEDROCK_RUNTIME/v1/messages` and the uploaded
-`BEDROCK_MODEL`. Jev uses `/v1/systemone` with its uploaded model. Upload
+`BEDROCK_MODEL`. Upload
 model policies with `--use-bedrock`; locally, supply a provider key to the
 player process.
 
