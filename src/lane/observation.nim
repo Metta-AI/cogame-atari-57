@@ -149,9 +149,8 @@ proc walkDistances*(lane: Lane, fromCol, fromRow: int): array[GridCells, int32] 
         queue[tail] = int32(nidx)
         inc tail
 
-proc laneThreats*(lane: Lane, preset: RomPreset): seq[Threat] =
+proc laneThreats*(lane: Lane, field: array[GridCells, int32]): seq[Threat] =
   ## Every hostile sprite in the lane, sorted by `eta_ticks` ascending.
-  let field = threatField(lane, preset)
   for sprite in lane.sprites:
     if not isHostile(sprite):
       continue
@@ -179,7 +178,7 @@ proc laneThreats*(lane: Lane, preset: RomPreset): seq[Threat] =
 proc avatarTicksPerTile(preset: RomPreset): int32 {.inline.} =
   max(1'i32, TileU div max(1'i32, preset.avatarSpeed))
 
-proc laneTargets*(lane: Lane, preset: RomPreset): seq[Target] =
+proc laneTargets*(lane: Lane, preset: RomPreset, threats: array[GridCells, int32]): seq[Target] =
   ## Every scoring thing currently on the screen, each with
   ## `(value, distTicks, zone, safe)`. **This is exactly the array the
   ## observation publishes as `targets` and exactly the array the autopilot
@@ -190,7 +189,6 @@ proc laneTargets*(lane: Lane, preset: RomPreset): seq[Target] =
     arow = int(rowOf(lane.ay))
     steps = walkDistances(lane, acol, arow)
     perTile = avatarTicksPerTile(preset)
-    threats = threatField(lane, preset)
 
   template push(tKind: string, tCol, tRow: int, tValue: int32) =
     block pushTarget:
@@ -284,12 +282,9 @@ proc laneTargets*(lane: Lane, preset: RomPreset): seq[Target] =
   if result.len > MaxTargets:
     result.setLen(MaxTargets)
 
-proc zoneSummaries*(lane: Lane, preset: RomPreset): JsonNode =
+proc zoneSummaries*(targets: openArray[Target], field: array[GridCells, int32]): JsonNode =
   ## The five fixed regions with their total target value and the soonest a
   ## hostile can be in them.
-  let
-    targets = laneTargets(lane, preset)
-    field = threatField(lane, preset)
   var
     value: array[5, int32]
     minEta: array[5, int32]
@@ -355,8 +350,9 @@ proc laneViewJson*(
   let
     lane = sim.lanes[seat]
     preset = sim.config.preset
-    threats = laneThreats(lane, preset)
-    targets = laneTargets(lane, preset)
+    field = threatField(lane, preset)
+    threats = laneThreats(lane, field)
+    targets = laneTargets(lane, preset, field)
     playedTicks = sim.gameTicksElapsed()
     leftTicks = max(0, sim.config.maxTicks - playedTicks)
 
@@ -431,7 +427,7 @@ proc laneViewJson*(
     "legend": legendJson(),
     "threats": threatsJson,
     "targets": targetsJson,
-    "zones": zoneSummaries(lane, preset),
+    "zones": zoneSummaries(targets, field),
     "scoreboard": scoreboardJson(sim),
     "rules": {
       "lives_per_lane": int(preset.livesPerLane),

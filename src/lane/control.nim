@@ -310,7 +310,7 @@ proc laneCommand*(
     return 0'u8
   let
     field = threatField(lane, preset)
-    targets = laneTargets(lane, preset)
+    targets = laneTargets(lane, preset, field)
   if preset.avatarMode == amRailBottom:
     railCommand(ctl, lane, stance, preset, tick, targets, field)
   else:
