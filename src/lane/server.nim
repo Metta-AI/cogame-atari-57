@@ -467,7 +467,7 @@ proc parseRegistration(
   text: string
 ): tuple[ok: bool, kind, scripted, policy: string] =
   ## A seat's ONE Sprite v1 chat message, read as its registration:
-  ##   {"type":"register","kind":"prompt|jev|scripted",
+  ##   {"type":"register","kind":"prompt|external|scripted",
   ##    "scripted":"arcader"|null,"policy":"…"}
   ## Anything that is not that object is not a registration.
   result = (false, "", "", "")
@@ -798,7 +798,7 @@ proc runServerLoop*(
             var policy = engine.seats[playerIndex]
             let firstRegistration = not policy.registered
             policy.registered = true
-            policy.isLlm = registration.kind in ["prompt", "jev"]
+            policy.isLlm = registration.kind in ["prompt", "external"]
             policy.baseline = parseBaseline(registration.scripted)
             policy.label =
               if registration.policy.len > 0: registration.policy

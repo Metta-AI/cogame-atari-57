@@ -103,7 +103,7 @@ the clock:
 ## The published baselines
 
 Both ship in the same image and emit the identical object, so they are directly
-comparable with prompt, Jev, and trained policies.
+comparable with prompt and trained policies.
 
 **`arcader`** (`PLAYER_SCRIPTED=arcader`) — the certification player, the
 per-turn fallback and the default for a seat that registers with neither env

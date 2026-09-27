@@ -127,10 +127,9 @@ proc testBothBinariesAreBuiltAndCopied() =
   check(dockerfile.contains("COPY --from=build /workspace/atari57/client ./client"),
         "the runtime stage does not carry the client art")
   let policies = parseJson(readRepoFile("tools/ci/policies.json"))
-  check(policies.len == 5, &"{policies.len} policies, not 5")
+  check(policies.len == 4, &"{policies.len} policies, not 4")
   var prompts = 0
   var scripted = 0
-  var jev = 0
   for policy in policies:
     check(policy{"run"}.getStr() == "/bin/atari-57-player",
           "a policy does not run the player entrypoint")
@@ -144,17 +143,12 @@ proc testBothBinariesAreBuiltAndCopied() =
       inc scripted
       check(policy{"env"}{"PLAYER_SCRIPTED"}.getStr() in ["arcader", "hoover"],
             "a filler names an unpublished baseline")
-    if policy{"env"}.hasKey("PLAYER_JEV"):
-      inc jev
-      check(policy{"env"}{"PLAYER_JEV"}.getStr() == "true",
-            "the Jev player flag is invalid")
   check(prompts == 2, &"{prompts} PLAYER_PROMPT champions, not 2")
   check(scripted == 2, &"{scripted} PLAYER_SCRIPTED fillers, not 2")
-  check(jev == 1, &"{jev} Jev players, not 1")
   check(policies[1]{"player"}.getStr() ==
           "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d",
         "champion #2 does not carry the daveey-1 player id")
-  report("both entrypoints are built; five policies include Jev")
+  report("both entrypoints are built; four prompt and scripted policies")
 
 proc testHostedPromptRoute() =
   let oldEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
