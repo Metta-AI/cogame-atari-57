@@ -48,11 +48,11 @@ proc newLlmClient*(config: GameConfig): LlmClient =
             else: "claude-haiku-4-5-20251001"),
     maxOutputTokens: max(1, config.maxOutputTokens)
   )
-  let sidecarEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME").strip()
+  let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
   if sidecarEndpoint.len > 0:
     result.transport = ltSidecar
     result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
-    result.model = getEnv("BEDROCK_MODEL")
+    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
     result.curl = newCurly()
     echo "atari-57 llm: sidecar transport, model ", result.model
     return
@@ -70,7 +70,7 @@ proc newLlmClient*(config: GameConfig): LlmClient =
       "every turn is falling back to the scripted layer"
 
 proc requestFor*(
-  client: LlmClient, system, user: string
+  client: LlmClient, system, user: string, slot: int
 ): tuple[url: string, headers: HttpHeaders, body: string] =
   ## One Messages-API request, shaped for whichever transport is live.
   client.throttled = false
@@ -82,6 +82,8 @@ proc requestFor*(
   }
   var headers: HttpHeaders
   headers["content-type"] = "application/json"
+  if client.transport == ltSidecar and slot >= 0:
+    headers["X-Coworld-Player-Slot"] = $slot
   headers["anthropic-version"] = AnthropicVersion
   if client.transport == ltSidecar:
     result.url = client.sidecarEndpoint & "/v1/messages"

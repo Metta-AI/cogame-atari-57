@@ -151,11 +151,11 @@ proc testBothBinariesAreBuiltAndCopied() =
   report("both entrypoints are built; four prompt and scripted policies")
 
 proc testHostedPromptRoute() =
-  let oldEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
-  let oldModel = getEnv("BEDROCK_MODEL")
-  putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "http://127.0.0.1:9100/")
-  putEnv("BEDROCK_MODEL", "anthropic/claude-haiku-4.5")
-  let request = newLlmClient(defaultGameConfig()).requestFor("rules", "private view")
+  let oldEndpoint = getEnv("COWORLD_LLM_ENDPOINT")
+  let oldModel = getEnv("COWORLD_LLM_MODEL")
+  putEnv("COWORLD_LLM_ENDPOINT", "http://127.0.0.1:9100/")
+  putEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+  let request = newLlmClient(defaultGameConfig()).requestFor("rules", "private view", 0)
   check(request.url == "http://127.0.0.1:9100/v1/messages",
         "the hosted prompt bypasses the model sidecar")
   check(request.headers["anthropic-version"] == "2023-06-01",
@@ -167,8 +167,8 @@ proc testHostedPromptRoute() =
   check(body["model"].getStr() == "anthropic/claude-haiku-4.5" and
         not body.hasKey("anthropic_version"),
         "the hosted player did not use the uploaded model")
-  putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", oldEndpoint)
-  putEnv("BEDROCK_MODEL", oldModel)
+  putEnv("COWORLD_LLM_ENDPOINT", oldEndpoint)
+  putEnv("COWORLD_LLM_MODEL", oldModel)
   report("hosted prompt uses the model sidecar's Anthropic Messages route")
 
 when isMainModule:
