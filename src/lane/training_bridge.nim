@@ -7,6 +7,18 @@ import sim, observation, baselines, stances, control, roster, llm
 const
   NumericFeatures = 435
   NumericActions = 1 + 5 * 10
+  NumericSystemPrompt = SystemPrompt[0 ..< SystemPrompt.find("Reply with a single JSON object")] & """
+Choose one of the numeric controller actions below. Reply only with
+{"choice": INTEGER}, where INTEGER is from 0 through 50.
+Choice 0 runs the shipped arcader baseline using only your current private view.
+For choices 1 through 50, let code = choice - 1. The mode is selected by code
+DIV 10: 0 clear (nearest scoring target), 1 hunt (highest-value target),
+2 strike (cash in), 3 safe (score while avoiding threats), 4 bank (avoid trades).
+The zone is selected by code MOD 10: 0 none, 1 nw, 2 ne, 3 sw, 4 se,
+5 centre, 6 left, 7 right, 8 top, 9 bottom.
+These actions fix risk to 0.2 for safe/bank and 0.55 otherwise, lead_ticks to
+12 and fire to auto. They cover a subset of the ordinary stance controller.
+"""
   Zones = ["none", "nw", "ne", "sw", "se", "centre", "left", "right",
     "top", "bottom"]
 
@@ -114,6 +126,7 @@ proc currentDecision(): JsonNode =
     },
   }
   if numericMode:
+    result["messages"][0]["content"] = %NumericSystemPrompt
     result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
     result["action_schema"] = %*{"type": "object", "properties": {
       "choice": {"type": "integer", "minimum": 0,

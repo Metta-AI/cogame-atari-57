@@ -64,3 +64,12 @@ for cartridge in ["chomper", "brickfall", "gallery"]:
     doAssert actingSeat == 0 and decisionId == 0
   doAssert step(%*{"decision_id": 0, "response": "{\"choice\":0}"})["kind"].getStr() == "accepted"
   echo cartridge, " invalid numeric replies stay unaccepted"
+
+
+# Numeric decisions must advertise the codec they accept, not the native stance.
+for cartridge in ["chomper", "brickfall", "gallery"]:
+  rom = cartridge
+  let issued = reset(%*{"seed": "7", "players": 4})
+  doAssert issued["messages"][0]["content"].getStr() != native_prompt.SystemPrompt
+  doAssert issued["messages"][0]["content"].getStr().contains("choice")
+  doAssert parseJson(issued["messages"][1]["content"].getStr()) == issued["semantic_view"]
