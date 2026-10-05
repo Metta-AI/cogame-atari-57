@@ -1,14 +1,8 @@
 ## Headless Atari 57 lanes for Metta post-training.
 ## The game simulation and player observation are the hosted implementations.
 
-import std/[hashes, json, os]
-import sim, observation, baselines, stances, control, roster
-
-const SystemPrompt = "Play one Atari 57 lane. Reply with one JSON stance: " &
-  "{\"mode\":\"clear|hunt|strike|safe|bank\"," &
-  "\"zone\":\"none|nw|ne|sw|se|centre|left|right|top|bottom\"," &
-  "\"risk\":0.5,\"lead_ticks\":14,\"fire\":\"auto|hold|never\"}. " &
-  "Your lane is isolated; the scoreboard is public."
+import std/[json, os, strutils]
+import sim, observation, baselines, stances, control, roster, llm
 
 const
   NumericFeatures = 435
@@ -82,7 +76,10 @@ proc stanceJson(stance: LaneStance): JsonNode =
 proc candidateStance(choice: int, seat: int): JsonNode =
   doAssert choice in 0 ..< NumericActions
   if choice == 0:
-    return stanceJson(arcaderStance(game, seat))
+    return stanceJson(arcaderStance(parseJson(game.laneViewJson(seat,
+      game.gameTicksElapsed() div game.config.turnTicks,
+      game.config.maxTicks div game.config.turnTicks,
+      chosenStances[seat], haveStance[seat]))))
   let code = choice - 1
   let mode = Mode(code div Zones.len)
   let zone = Zones[code mod Zones.len]
@@ -127,11 +124,11 @@ proc reset(command: JsonNode): JsonNode =
     raise newException(ValueError, "Atari 57 has exactly four isolated lanes")
   var config = defaultGameConfig()
   config.update($(%*{"rom": rom,
-    "seed": int(hash(command["seed"].getStr()) and hash(high(int))),
-    "minPlayers": 1}))
+    "seed": parseInt(command["seed"].getStr())}))
   game = initSimServer(config)
   game.gameEventLoggingEnabled = false
-  discard game.addPlayer("P1", 0, "", trusted = true)
+  for seat in 0 ..< 4:
+    discard game.addPlayer("P" & $(seat + 1), seat, "", trusted = true)
   game.startGame()
   for seat in 0 ..< 4:
     controls[seat] = initControlLane()
@@ -143,7 +140,7 @@ proc reset(command: JsonNode): JsonNode =
 
 proc teacher(): JsonNode =
   %*{"response": (if numericMode: $(%*{"choice": 0})
-                   else: $stanceJson(arcaderStance(game, actingSeat)))}
+                   else: $stanceJson(arcaderStance(parseJson(currentDecision()["messages"][1]["content"].getStr()))))}
 
 proc step(command: JsonNode): JsonNode =
   if command["decision_id"].getInt() != decisionId:
