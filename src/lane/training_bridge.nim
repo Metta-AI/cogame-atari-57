@@ -148,7 +148,13 @@ proc step(command: JsonNode): JsonNode =
   var submitted, reply: JsonNode
   var stance: LaneStance
   try:
-    submitted = parseJson(command["response"].getStr())
+    submitted =
+      if numericMode: parseJson(command["response"].getStr())
+      else: extractJsonObject(command["response"].getStr())
+    if numericMode and (submitted.kind != JObject or not submitted.hasKey("choice") or
+        submitted["choice"].kind != JInt or submitted["choice"].getInt() < 0 or
+        submitted["choice"].getInt() >= NumericActions):
+      return %*{"kind": "rejected", "reason": "reply must contain an integer choice from 0 through 50"}
     reply =
       if numericMode: candidateStance(submitted["choice"].getInt(), actingSeat)
       else: submitted

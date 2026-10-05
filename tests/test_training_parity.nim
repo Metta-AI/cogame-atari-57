@@ -41,3 +41,26 @@ for cartridge in ["chomper", "brickfall", "gallery"]:
     doAssert game.gameHash() == ordinary.gameHash(), "physical replay diverged"
   doAssert game.playerResultsJson() == ordinary.playerResultsJson()
   echo cartridge, " hosted prompt/seed/four-seat physical parity passed"
+
+
+for cartridge in ["chomper", "brickfall", "gallery"]:
+  rom = cartridge
+  discard reset(%*{"seed": "7", "players": 4})
+  let completion = "Here is my stance:\n```json\n" & teacher()["response"].getStr() & "\n```"
+  let expected = parseLaneStance(extractJsonObject(completion), DefaultStance, false)
+  let applied = step(%*{"decision_id": 0, "response": completion})
+  doAssert applied["kind"].getStr() == "accepted", "native parser accepts this prose-wrapped stance"
+  doAssert applied["action"] == stanceJson(expected)
+  echo cartridge, " ordinary completion parser parity passed"
+
+
+numericMode = true
+for cartridge in ["chomper", "brickfall", "gallery"]:
+  rom = cartridge
+  for invalid in ["{\"choice\":\"0\"}", "{\"choice\":0.0}", "{\"choice\":-1}",
+                  "{\"choice\":51}", "{}", "[]"]:
+    discard reset(%*{"seed": "7", "players": 4})
+    doAssert step(%*{"decision_id": 0, "response": invalid})["kind"].getStr() == "rejected"
+    doAssert actingSeat == 0 and decisionId == 0
+  doAssert step(%*{"decision_id": 0, "response": "{\"choice\":0}"})["kind"].getStr() == "accepted"
+  echo cartridge, " invalid numeric replies stay unaccepted"
