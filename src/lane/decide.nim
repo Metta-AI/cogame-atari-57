@@ -247,7 +247,7 @@ proc turn*(
     inc attempt
     var retryable: seq[int]
     for seat in open:
-      if lastCause[seat] in ["throttled", "no_credentials"]:
+      if lastCause[seat] in ["throttled", "no_endpoint"]:
         failFast.add(seat)
       else:
         retryable.add(seat)

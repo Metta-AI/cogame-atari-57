@@ -17,7 +17,7 @@
 ## no-show's lane, and the default for a seat that registers with neither
 ## `PLAYER_PROMPT` nor `PLAYER_SCRIPTED`.
 
-import std/strutils
+import std/[json, strutils]
 import sim, stances, observation
 
 type
@@ -64,14 +64,36 @@ proc parseBaseline*(text: string): Baseline =
   of "hoover", "hoov", "greedy": blHoover
   else: blArcader
 
-proc arcaderStance*(
-  sim: SimServer, seat: int, params = DefaultBaselineParams
+type
+  BaselineTarget = object
+    kind: string
+    distTicks, value: int
+    zone: Zone
+  BaselineView = object
+    over: bool
+    lives, powerTicksLeft, nearestEta: int
+    targets: seq[BaselineTarget]
+
+proc baselineView(view: JsonNode): BaselineView =
+  ## The wire uses -1 for an unreachable ETA; restore the controller sentinel.
+  let you = view["you"]
+  result.over = you["state"].getStr() == "over"
+  result.lives = you["lives"].getInt()
+  result.powerTicksLeft = you["power_ticks_left"].getInt()
+  result.nearestEta = FarEta
+  if view["threats"].len > 0:
+    let eta = view["threats"][0]["eta_ticks"].getInt()
+    result.nearestEta = if eta == -1: FarEta.int else: eta
+  for target in view["targets"]:
+    let distance = target["dist_ticks"].getInt()
+    result.targets.add(BaselineTarget(kind: target["kind"].getStr(),
+      distTicks: (if distance == -1: FarEta.int else: distance),
+      value: target["value"].getInt(), zone: parseZone(target["zone"].getStr())))
+
+proc arcaderStance(
+  view: BaselineView, params = DefaultBaselineParams
 ): LaneStance =
-  ## The certification player, the fallback, and the default. Evaluated once
-  ## per turn from the observation the seat would receive.
-  let
-    lane = sim.lanes[seat]
-    preset = sim.config.preset
+  ## One chooser shared by the hosted baseline and its private-view teacher.
   result = DefaultStance
   result.source = stScripted
   result.fire = fmAuto
@@ -79,7 +101,7 @@ proc arcaderStance*(
   result.riskMilli = params.riskMilli
   result.zone = znNone
 
-  if lane.phase == lpOver:
+  if view.over:
     result.mode = mdSafe
     result.riskMilli = 0
     result.leadTicks = 12
@@ -88,20 +110,13 @@ proc arcaderStance*(
     result.say = ArcaderSayings[2]
     return
 
-  let
-    threats = laneThreats(lane, preset)
-    targets = laneTargets(lane, preset)
-  var nearestEta = FarEta
-  if threats.len > 0:
-    nearestEta = threats[0].etaTicks
-
-  if lane.powerTicksLeft > 48'i32:
+  if view.powerTicksLeft > 48'i32:
     result.mode = mdStrike
     result.riskMilli = 850
     result.leadTicks = 10
     result.note = "power window open: cash the chain"
     result.say = ArcaderSayings[1]
-  elif nearestEta <= params.panicTicks:
+  elif view.nearestEta <= params.panicTicks:
     result.mode = mdSafe
     result.riskMilli = 150
     result.leadTicks = 8
@@ -111,14 +126,14 @@ proc arcaderStance*(
     var
       power = (found: false, zone: znNone)
       bestZone = znNone
-      bestValue = -1'i32
-    for target in targets:
+      bestValue = -1
+    for target in view.targets:
       if target.kind == "power" and target.distTicks <= 72'i32 and
           not power.found:
-        power = (true, parseZone(target.zone))
+        power = (true, target.zone)
       if target.value > bestValue:
         bestValue = target.value
-        bestZone = parseZone(target.zone)
+        bestZone = target.zone
     if power.found:
       result.mode = mdHunt
       result.zone = power.zone
@@ -133,11 +148,27 @@ proc arcaderStance*(
       result.say = ArcaderSayings[0]
 
   # The last-life override applies in EVERY branch.
-  if lane.lives == 1'i32:
+  if view.lives == 1'i32:
     result.riskMilli = result.riskMilli div 2
     if result.mode == mdHunt:
       result.mode = mdClear
     result.say = ArcaderSayings[4]
+
+proc arcaderStance*(view: JsonNode, params = DefaultBaselineParams): LaneStance =
+  arcaderStance(baselineView(view), params)
+
+proc arcaderStance*(sim: SimServer, seat: int,
+    params = DefaultBaselineParams): LaneStance =
+  ## Project only the fields present in the issued private observation.
+  let lane = sim.lanes[seat]
+  var view = BaselineView(over: lane.phase == lpOver, lives: lane.lives,
+    powerTicksLeft: lane.powerTicksLeft, nearestEta: FarEta)
+  let threats = laneThreats(lane, sim.config.preset)
+  if threats.len > 0: view.nearestEta = threats[0].etaTicks
+  for target in laneTargets(lane, sim.config.preset):
+    view.targets.add(BaselineTarget(kind: target.kind, distTicks: target.distTicks,
+      value: target.value, zone: parseZone(target.zone)))
+  arcaderStance(view, params)
 
 proc hooverStance*(sim: SimServer, seat: int): LaneStance =
   ## The second filler, deliberately different in SHAPE and weaker: it never

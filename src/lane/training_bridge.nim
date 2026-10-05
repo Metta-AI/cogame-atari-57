@@ -1,18 +1,24 @@
 ## Headless Atari 57 lanes for Metta post-training.
 ## The game simulation and player observation are the hosted implementations.
 
-import std/[hashes, json, os]
-import sim, observation, baselines, stances, control, roster
-
-const SystemPrompt = "Play one Atari 57 lane. Reply with one JSON stance: " &
-  "{\"mode\":\"clear|hunt|strike|safe|bank\"," &
-  "\"zone\":\"none|nw|ne|sw|se|centre|left|right|top|bottom\"," &
-  "\"risk\":0.5,\"lead_ticks\":14,\"fire\":\"auto|hold|never\"}. " &
-  "Your lane is isolated; the scoreboard is public."
+import std/[json, os, strutils]
+import sim, observation, baselines, stances, control, roster, llm
 
 const
   NumericFeatures = 435
   NumericActions = 1 + 5 * 10
+  NumericSystemPrompt = SystemPrompt[0 ..< SystemPrompt.find("Reply with a single JSON object")] & """
+Choose one of the numeric controller actions below. Reply only with
+{"choice": INTEGER}, where INTEGER is from 0 through 50.
+Choice 0 runs the shipped arcader baseline using only your current private view.
+For choices 1 through 50, let code = choice - 1. The mode is selected by code
+DIV 10: 0 clear (nearest scoring target), 1 hunt (highest-value target),
+2 strike (cash in), 3 safe (score while avoiding threats), 4 bank (avoid trades).
+The zone is selected by code MOD 10: 0 none, 1 nw, 2 ne, 3 sw, 4 se,
+5 centre, 6 left, 7 right, 8 top, 9 bottom.
+These actions fix risk to 0.2 for safe/bank and 0.55 otherwise, lead_ticks to
+12 and fire to auto. They cover a subset of the ordinary stance controller.
+"""
   Zones = ["none", "nw", "ne", "sw", "se", "centre", "left", "right",
     "top", "bottom"]
 
@@ -82,7 +88,10 @@ proc stanceJson(stance: LaneStance): JsonNode =
 proc candidateStance(choice: int, seat: int): JsonNode =
   doAssert choice in 0 ..< NumericActions
   if choice == 0:
-    return stanceJson(arcaderStance(game, seat))
+    return stanceJson(arcaderStance(parseJson(game.laneViewJson(seat,
+      game.gameTicksElapsed() div game.config.turnTicks,
+      game.config.maxTicks div game.config.turnTicks,
+      chosenStances[seat], haveStance[seat]))))
   let code = choice - 1
   let mode = Mode(code div Zones.len)
   let zone = Zones[code mod Zones.len]
@@ -117,6 +126,7 @@ proc currentDecision(): JsonNode =
     },
   }
   if numericMode:
+    result["messages"][0]["content"] = %NumericSystemPrompt
     result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
     result["action_schema"] = %*{"type": "object", "properties": {
       "choice": {"type": "integer", "minimum": 0,
@@ -127,11 +137,11 @@ proc reset(command: JsonNode): JsonNode =
     raise newException(ValueError, "Atari 57 has exactly four isolated lanes")
   var config = defaultGameConfig()
   config.update($(%*{"rom": rom,
-    "seed": int(hash(command["seed"].getStr()) and hash(high(int))),
-    "minPlayers": 1}))
+    "seed": parseInt(command["seed"].getStr())}))
   game = initSimServer(config)
   game.gameEventLoggingEnabled = false
-  discard game.addPlayer("P1", 0, "", trusted = true)
+  for seat in 0 ..< 4:
+    discard game.addPlayer("P" & $(seat + 1), seat, "", trusted = true)
   game.startGame()
   for seat in 0 ..< 4:
     controls[seat] = initControlLane()
@@ -143,7 +153,7 @@ proc reset(command: JsonNode): JsonNode =
 
 proc teacher(): JsonNode =
   %*{"response": (if numericMode: $(%*{"choice": 0})
-                   else: $stanceJson(arcaderStance(game, actingSeat)))}
+                   else: $stanceJson(arcaderStance(parseJson(currentDecision()["messages"][1]["content"].getStr()))))}
 
 proc step(command: JsonNode): JsonNode =
   if command["decision_id"].getInt() != decisionId:
@@ -151,7 +161,13 @@ proc step(command: JsonNode): JsonNode =
   var submitted, reply: JsonNode
   var stance: LaneStance
   try:
-    submitted = parseJson(command["response"].getStr())
+    submitted =
+      if numericMode: parseJson(command["response"].getStr())
+      else: extractJsonObject(command["response"].getStr())
+    if numericMode and (submitted.kind != JObject or not submitted.hasKey("choice") or
+        submitted["choice"].kind != JInt or submitted["choice"].getInt() < 0 or
+        submitted["choice"].getInt() >= NumericActions):
+      return %*{"kind": "rejected", "reason": "reply must contain an integer choice from 0 through 50"}
     reply =
       if numericMode: candidateStance(submitted["choice"].getInt(), actingSeat)
       else: submitted
