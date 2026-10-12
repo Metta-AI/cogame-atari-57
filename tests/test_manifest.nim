@@ -172,9 +172,8 @@ proc testGameBlock() =
   check(game{"runnable"}{"type"}.getStr() == "game", "runnable.type is not game")
   check(game{"runnable"}{"run"}[0].getStr() == "/bin/atari-57",
         "the game entrypoint is wrong")
-  check(game{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.getStr() ==
-          "secret://coworld/atari-57/anthropic_api_key",
-        "the hosted game pod would never receive the secret")
+  check(game{"runnable"}{"env"}.len == 0,
+        "hosted inference needs no provider secret")
   for key in ["player", "global"]:
     let proto = game{"protocols"}{key}
     check(proto.kind == JObject, &"protocols.{key} is not an object")
@@ -194,16 +193,6 @@ proc testGameBlock() =
     check(page{"content"}{"value"}.getStr().len > 400,
           &"docs page {pageId} is trivial")
   report("game block: description, tags, owner, protocols, docs, bundle")
-
-proc testSecretNamespaceEqualsGameName() =
-  ## The `secret://coworld/<ns>/…` namespace must equal `game.name` EXACTLY
-  ## (cooperative-hunting, 2026-08-25), or upload 400s after a green certify.
-  let uri = manifest{"game"}{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.getStr()
-  let parts = uri.split('/')
-  check(parts.len == 5, &"the secret URI has an unexpected shape: {uri}")
-  check(parts[3] == manifest{"game"}{"name"}.getStr(),
-        &"the secret namespace {parts[3]} is not game.name")
-  report("the secret namespace equals game.name")
 
 proc testImagePlaceholderMatchesCompose() =
   ## Placeholders are DERIVED from compose SERVICE names by uppercasing and
@@ -292,7 +281,6 @@ when isMainModule:
   testResultsDocumentValidates()
   testConfigSchema()
   testGameBlock()
-  testSecretNamespaceEqualsGameName()
   testImagePlaceholderMatchesCompose()
   testVariantsShareTheClock()
   testCertFixtureShape()
