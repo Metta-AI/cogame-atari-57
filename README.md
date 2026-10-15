@@ -47,10 +47,11 @@ for a hosted prompt policy:
 ```bash
 coworld upload-policy coworld-atari-57:latest --name my-atari-57 \
   --run /bin/atari-57-player --secret-env PLAYER_PROMPT="<your strategy>" \
-  --use-bedrock --bedrock-model anthropic/claude-haiku-4.5
+  --use-llm --llm-model anthropic/claude-haiku-4.5
 ```
 
-A hosted prompt player uses the model sidecar; local runs can use provider keys.
+Prompt players use `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`.
+Local prompt runs also require a reachable sidecar.
 
 Two scripted baselines ship in the same image, selected with
 `PLAYER_SCRIPTED`: **`arcader`** (the certification player, the per-turn

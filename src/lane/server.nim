@@ -540,7 +540,7 @@ proc playerBatch(
             result[position].ok = true
             result[position].action = $answer["action"]
           else:
-            result[position].error = answer{"error"}.getStr("player fallback")
+            result[position].error = "player completion rejected"
             result[position].cause = answer{"cause"}.getStr("transport_error")
         except CatchableError:
           result[position].cause = "parse_error"

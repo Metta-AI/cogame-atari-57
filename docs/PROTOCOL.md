@@ -105,11 +105,11 @@ so the episode ends `complete/*` rather than `deadline`).
 | `COGAME_PLAYER_FAILURE_URI` | where a lobby no-show is declared |
 | `COGAME_HOST` / `COGAME_PORT` | the listener |
 
-The game pod has no model credential. A hosted prompt player uses
-`AWS_ENDPOINT_URL_BEDROCK_RUNTIME/v1/messages` and the uploaded
-`BEDROCK_MODEL`. Upload
-model policies with `--use-bedrock`; locally, supply a provider key to the
-player process.
+The game pod has no model credential. Prompt players call
+`COWORLD_LLM_ENDPOINT/v1/messages` with the uploaded `COWORLD_LLM_MODEL`.
+Upload model policies with `--use-llm --llm-model`. Local prompt players
+also require a reachable sidecar. Every request carries its issued player slot.
+Provider credentials and legacy endpoints are unused.
 
 Routes: `GET /healthz`, `GET /player?slot=N&token=T` (websocket),
 `GET /global` (websocket), `GET /replay` (websocket), `GET /client/global`,

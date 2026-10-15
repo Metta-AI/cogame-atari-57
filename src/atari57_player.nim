@@ -1,11 +1,7 @@
 ## The atari-57 player container: a policy is just a prompt.
 ##
-## This process is DELIBERATELY thin. It connects to its seat, sends ONE
-## Sprite v1 chat message carrying its registration, and then only receives.
-## Every decision happens inside the GAME server, because that is the only
-## container the platform injects the `anthropic_api_key` coworld secret
-## into, and because keeping the autopilot server-side is what makes the
-## recorded ACTION LOG reproducible with no network in the loop.
+## This process receives its seat's private decisions and owns sidecar inference.
+## The game validates returned stances and runs the deterministic autopilot.
 ##
 ##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
 ##   PLAYER_SCRIPTED      arcader | hoover         -> this seat is scripted
@@ -128,23 +124,23 @@ when isMainModule:
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
             if kind == "prompt" and client.disabled:
-              reply["cause"] = %"no_credentials"
-              reply["error"] = %"no_credentials"
+              reply["cause"] = %"no_endpoint"
+              reply["error"] = %"no_endpoint"
             else:
               try:
                 var user = userMessage(prompt, $decision["view"])
                 if decision["retry"].getBool():
                   user.add("\n\nYour previous reply was unusable. Return only JSON.")
                 let request = client.requestFor(
-                  decision["system"].getStr(), user, -1)
+                  decision["system"].getStr(), user, decision["seat"].getInt())
                 let response = client.curl.post(request.url,
                   request.headers, request.body, timeoutSeconds)
                 reply["action"] = extractJsonObject(
-                  client.textOf(response, "", request.url))
+                  client.textOf(response, ""))
               except CatchableError as error:
                 reply["cause"] = %(if client != nil and client.throttled:
                     "throttled" else: "transport_error")
-                reply["error"] = %error.msg
+                reply["error"] = %"player completion rejected"
             socket.send($reply, TextMessage)
           continue
         inc sessionFrames
