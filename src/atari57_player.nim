@@ -1,27 +1,12 @@
-## The atari-57 player container: a policy is just a prompt.
-##
-## This process is DELIBERATELY thin. It connects to its seat, sends ONE
-## Sprite v1 chat message carrying its registration, and then only receives.
-## Every decision happens inside the GAME server, because that is the only
-## container the platform injects the `anthropic_api_key` coworld secret
-## into, and because keeping the autopilot server-side is what makes the
-## recorded ACTION LOG reproducible with no network in the loop.
-##
-##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
-##   PLAYER_SCRIPTED      arcader | hoover         -> this seat is scripted
-##   PLAYER_POLICY_LABEL  a free label for the replay's `register` record
-##
-## A seat that sets neither is `arcader`. To field your own policy, reuse
-## this image and set PLAYER_PROMPT:
-##
-##   coworld upload-policy <atari-57-image> --name my-atari-57 \
-##     --run /bin/atari-57-player --secret-env PLAYER_PROMPT="<your strategy>"
+## Ordinary Atari 57 prompt, scripted, and frozen numeric players.
+## The game owns validation, fallback, rules, results, and replay.
+## PLAYER_NUMERIC_URL points to a Metta frozen-policy /choice endpoint.
 
 import
-  std/[json, options, os, strutils],
+  std/[httpclient, json, options, os, strutils, sysrand],
   bitworld/spriteprotocol,
   whisky, curly,
-  lane/[llm, sim_config, stances]
+  lane/[llm, sim_config, stances, numeric_codec]
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -60,12 +45,14 @@ when isMainModule:
   if url.len == 0:
     quit("COWORLD_PLAYER_WS_URL is not set", 1)
   let
+    numericUrl = getEnv("PLAYER_NUMERIC_URL").strip()
     prompt = getEnv("PLAYER_PROMPT").strip()
     scripted = getEnv("PLAYER_SCRIPTED").strip()
-    kind = if prompt.len > 0: "prompt" else: "scripted"
+    kind = if numericUrl.len > 0: "external" elif prompt.len > 0: "prompt" else: "scripted"
     label = block:
       let explicit = getEnv("PLAYER_POLICY_LABEL").strip()
       if explicit.len > 0: explicit
+      elif numericUrl.len > 0: "numeric"
       elif prompt.len > 0: "prompt"
       elif scripted.len > 0: scripted
       else: "arcader"
@@ -74,6 +61,11 @@ when isMainModule:
     " baseline=", (if scripted.len > 0: scripted else: "arcader"),
     " label=", label
   let client = if kind == "prompt": newLlmClient(defaultGameConfig()) else: nil
+
+  doAssert numericUrl.len == 0 or prompt.len == 0
+  let numericClient = newHttpClient(timeout = 5000)
+  numericClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+  let session = getEnv("PLAYER_POLICY_SESSION", $urandom(16))
 
   proc dial(attempts: int): WebSocket =
     ## Bounded dialling. The game bakes its supersampled board render caches
@@ -127,7 +119,15 @@ when isMainModule:
           if decision{"type"}.getStr() == "decision":
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
-            if kind == "prompt" and client.disabled:
+            if numericUrl.len > 0:
+              let view = decision["view"]
+              var mask = newJArray()
+              for choice in 0 ..< NumericActions: mask.add(%true)
+              let request = %*{"session":session, "seat": decision["seat"],
+                "decision_id":decision["id"], "values":features(view), "action_mask":mask}
+              let response = parseJson(numericClient.postContent(numericUrl, $request))
+              reply["action"] = candidateStance(view, response["choice"].getInt())
+            elif kind == "prompt" and client.disabled:
               reply["cause"] = %"no_credentials"
               reply["error"] = %"no_credentials"
             else:
@@ -171,4 +171,5 @@ when isMainModule:
       echo "atari-57 player: game is no longer listening, exiting cleanly"
       break
     echo "atari-57 player: reconnected, re-registering"
+  numericClient.close()
   quit(0)

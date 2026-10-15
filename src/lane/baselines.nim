@@ -89,8 +89,9 @@ proc arcaderStance*(
     return
 
   let
-    threats = laneThreats(lane, preset)
-    targets = laneTargets(lane, preset)
+    field = threatField(lane, preset)
+    threats = laneThreats(lane, field)
+    targets = laneTargets(lane, preset, field)
   var nearestEta = FarEta
   if threats.len > 0:
     nearestEta = threats[0].etaTicks

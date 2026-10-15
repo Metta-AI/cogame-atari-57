@@ -60,3 +60,36 @@ argument and use separate trajectory and dataset paths. The scripted `arcader`
 baseline supplies protocol-valid labels; this does not establish strong play.
 The text bridge preserves the full stance for Metta post-training and exposes
 the same private observation as the numeric codec.
+
+## Ordinary frozen-policy player
+
+`src/lane/numeric_codec.nim` owns both private-view features and numeric stance decoding.
+The bridge and player use the same codec. Choice `0` reconstructs the ordinary
+`arcader` stance from the seat view; it does not request a game-side decision.
+Choices `1..50` retain the documented mode/zone menu and complete fixed-field stances.
+The numeric policy's menu still covers a subset of legal stances.
+
+Run an exported Metta bundle with its ordinary player:
+
+```bash
+# In the Metta checkout:
+uv run --package metta-training metta-choice-serve /path/to/exported/policy --port 18888
+
+# In this game's ordinary player process/container:
+PLAYER_NUMERIC_URL=http://127.0.0.1:18888/choice \
+COWORLD_PLAYER_WS_URL='ws://127.0.0.1:8080/player?name=numeric&slot=0' \
+/bin/atari-57-player
+```
+
+Use a reachable service hostname for separate containers. Each player creates
+an independent random inference session. `PLAYER_POLICY_SESSION` can explicitly
+name it. The request carries the actual game seat and decision ID, 435 private
+features, and a 51-choice mask. The reply becomes an ordinary complete stance.
+`PLAYER_NUMERIC_URL` and `PLAYER_PROMPT` are mutually exclusive.
+The game receives no model weights, policy endpoint, or model credential.
+
+`tests/test_numeric_codec.nim` compares the private-view baseline against the
+native baseline across complete games, all three ROMs, and three seeds. It
+also parses every one of the 51 decoded stances at each decision.
+CUDA optimizer/export, independent frozen replay, and full default-variant
+ordinary episodes still require checkpoint evidence.

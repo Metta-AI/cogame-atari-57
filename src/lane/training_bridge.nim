@@ -2,19 +2,13 @@
 ## The game simulation and player observation are the hosted implementations.
 
 import std/[hashes, json, os]
-import sim, observation, baselines, stances, control, roster
+import sim, observation, baselines, stances, control, roster, numeric_codec
 
 const SystemPrompt = "Play one Atari 57 lane. Reply with one JSON stance: " &
   "{\"mode\":\"clear|hunt|strike|safe|bank\"," &
   "\"zone\":\"none|nw|ne|sw|se|centre|left|right|top|bottom\"," &
   "\"risk\":0.5,\"lead_ticks\":14,\"fire\":\"auto|hold|never\"}. " &
   "Your lane is isolated; the scoreboard is public."
-
-const
-  NumericFeatures = 435
-  NumericActions = 1 + 5 * 10
-  Zones = ["none", "nw", "ne", "sw", "se", "centre", "left", "right",
-    "top", "bottom"]
 
 var
   game: SimServer
@@ -25,47 +19,6 @@ var
   actingSeat: int
   rom = "chomper"
   numericMode = false
-
-proc features(view: JsonNode): JsonNode =
-  result = newJArray()
-  for name in ["chomper", "brickfall", "gallery"]:
-    result.add(%(if view["rom"].getStr() == name: 1 else: 0))
-  for key in ["turn", "of"]: result.add(view[key])
-  result.add(view["clock"]["left_s"])
-  let you = view["you"]
-  for key in ["lives", "points", "score", "screen"]: result.add(you[key])
-  for key in ["col", "row", "x", "y", "speed_tiles_s"]:
-    result.add(you["avatar"][key])
-  for key in ["power_ticks_left", "chain", "best_chain", "par"]:
-    result.add(you[key])
-  result.add(%(if you["record"].getBool(): 1 else: 0))
-  for player in view["scoreboard"]:
-    for key in ["score", "lives", "screen"]: result.add(player[key])
-  for zone in ["nw", "ne", "sw", "se", "centre"]:
-    for key in ["value", "min_threat_eta"]:
-      result.add(view["zones"][zone][key])
-  for line in view["screen_map"]:
-    for ch in line.getStr(): result.add(%ord(ch))
-  for index in 0 ..< 12:
-    if index < view["targets"].len:
-      let target = view["targets"][index]
-      for key in ["col", "row", "value", "dist_ticks"]:
-        result.add(target[key])
-      result.add(%(if target["safe"].getBool(): 1 else: 0))
-      var zoneIndex = 0
-      for position, zone in Zones:
-        if target["zone"].getStr() == zone: zoneIndex = position
-      result.add(%zoneIndex)
-    else:
-      for _ in 0 ..< 6: result.add(%0)
-  for index in 0 ..< 8:
-    if index < view["threats"].len:
-      let threat = view["threats"][index]
-      for key in ["col", "row", "eta_ticks", "dist_tiles"]:
-        result.add(threat[key])
-    else:
-      for _ in 0 ..< 4: result.add(%0)
-  doAssert result.len == NumericFeatures
 
 proc candidates(): JsonNode =
   result = newJArray()
@@ -78,17 +31,6 @@ proc stanceJson(stance: LaneStance): JsonNode =
     "risk": float(stance.riskMilli) / 1000.0,
     "lead_ticks": stance.leadTicks, "fire": $stance.fire,
     "note": stance.note, "say": stance.say}
-
-proc candidateStance(choice: int, seat: int): JsonNode =
-  doAssert choice in 0 ..< NumericActions
-  if choice == 0:
-    return stanceJson(arcaderStance(game, seat))
-  let code = choice - 1
-  let mode = Mode(code div Zones.len)
-  let zone = Zones[code mod Zones.len]
-  %*{"mode": $mode, "zone": zone,
-    "risk": (if mode in [mdSafe, mdBank]: 0.2 else: 0.55),
-    "lead_ticks": 12, "fire": "auto", "note": "numeric stance", "say": ""}
 
 proc currentDecision(): JsonNode =
   let turn = game.gameTicksElapsed() div game.config.turnTicks
@@ -153,7 +95,7 @@ proc step(command: JsonNode): JsonNode =
   try:
     submitted = parseJson(command["response"].getStr())
     reply =
-      if numericMode: candidateStance(submitted["choice"].getInt(), actingSeat)
+      if numericMode: candidateStance(parseJson(currentDecision()["messages"][1]["content"].getStr()), submitted["choice"].getInt())
       else: submitted
     stance = parseLaneStance(reply,
       chosenStances[actingSeat], haveStance[actingSeat])
