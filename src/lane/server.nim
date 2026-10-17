@@ -546,7 +546,17 @@ proc playerBatch(
           if answer.hasKey("prompt_evidence"):
             # Player-reported context, not authenticated generation evidence.
             let evidence = answer["prompt_evidence"]
+            if evidence.kind != JObject or not evidence.hasKey("messages"):
+              raise newException(ValueError, "player prompt evidence must contain messages")
             let messages = evidence["messages"]
+            if messages.kind != JArray or messages.len != 2:
+              raise newException(ValueError, "player prompt evidence requires two messages")
+            for index, role in ["system", "user"]:
+              if messages[index].kind != JObject or
+                  messages[index]{"role"}.getStr() != role or
+                  not messages[index].hasKey("content") or
+                  messages[index]["content"].kind != JString:
+                raise newException(ValueError, "invalid player prompt message")
             if evidence["request_id"].getInt() != requestId or
                 evidence["seat"].getInt() != call.seat or
                 messages[0]["content"].getStr() != selection.systemPrompt() or

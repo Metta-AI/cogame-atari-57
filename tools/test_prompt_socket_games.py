@@ -41,6 +41,8 @@ async def play(binary, player_binary, folder, config, revision):
         COWORLD_SOURCE_REVISION=revision,
     )
     received = {}
+    malformed = os.environ.get("PROMPT_EVIDENCE_MALFORMED") == "1"
+    invalid_sent = set()
     with (folder / "game.log").open("w") as log:
         process = await asyncio.create_subprocess_exec(
             binary, env=environment, stdout=log, stderr=log
@@ -107,6 +109,19 @@ async def play(binary, player_binary, folder, config, revision):
                             "note": f"PRIVATE-{seat}",
                             "say": f"SPECTATOR-{seat}",
                         }
+                        if malformed and seat not in invalid_sent:
+                            invalid_sent.add(seat)
+                            await connection.send(
+                                json.dumps(
+                                    {
+                                        "type": "action",
+                                        "id": frame["id"],
+                                        "action": action,
+                                        "prompt_evidence": {"messages": []},
+                                    }
+                                )
+                            )
+                            continue
                         await connection.send(
                             json.dumps(
                                 {"type": "action", "id": frame["id"], "action": action}
@@ -216,7 +231,12 @@ async def play(binary, player_binary, folder, config, revision):
                 frame = received[key]
                 assert metadata == frame["prompt_template"]
                 assert messages[0]["content"] == frame["system"]
-                assert json.loads(messages[1]["content"]) == frame["view"]
+                user = messages[1]["content"]
+                if frame["retry"]:
+                    suffix = "\n\nYour previous reply was unusable. Return only JSON."
+                    assert user.endswith(suffix)
+                    user = user.removesuffix(suffix)
+                assert json.loads(user) == frame["view"]
     assert len(systems) == 1 and server_records
     if player_binary:
         assert reports.keys() == server_records.keys()
@@ -225,7 +245,9 @@ async def play(binary, player_binary, folder, config, revision):
         assert all(s["source"] != "llm" for s in summary["stances"])
     else:
         assert not reports and server_records.keys() == received.keys()
-        assert summary["fallbacks"] == 0
+        assert summary["fallbacks"] == (4 if malformed else 0)
+    if malformed:
+        assert invalid_sent == set(range(4))
     replay_bytes = (folder / "episode.replay").read_bytes()
     for secret in (
         b"prompt_template",
@@ -300,8 +322,10 @@ async def main():
                 "heldout-reference",
             ]
         )
+        if os.environ.get("PROMPT_EVIDENCE_MALFORMED") == "1":
+            direct = ["canonical"]
         selections = [(name, 0) for name in direct]
-        if not player_binary:
+        if not player_binary and os.environ.get("PROMPT_EVIDENCE_MALFORMED") != "1":
             selections += [("mixed", index) for index in range(5)]
         canonical = None
         systems = {}

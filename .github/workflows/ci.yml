@@ -167,6 +167,7 @@ jobs:
           nim c -d:release --parallelBuild:1 --path:src -o:/tmp/atari57-bridge src/lane/training_bridge.nim
           python tools/test_prompt_variants.py /tmp/atari57-bridge
           python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-socket-games "$GITHUB_SHA"
+          PROMPT_EVIDENCE_MALFORMED=1 python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-malformed "$GITHUB_SHA"
           python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-native-failure "$GITHUB_SHA" /tmp/atari57-player
 
   # ---------------------------------------------------------------------
