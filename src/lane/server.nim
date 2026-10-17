@@ -42,7 +42,7 @@ import
   bitworld/client as bitworldClient, bitworld/spriteprotocol, bitworld/runtime,
   mummy,
   sim, global, replays, broadcast, replay_runtime, events, wire_constants,
-  control, stances, baselines, decide, llm
+  control, stances, baselines, decide, prompts
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -488,7 +488,8 @@ proc parseRegistration(
 
 proc playerBatch(
   seatSockets: array[4, WebSocket],
-  seatConnected: array[4, bool]
+  seatConnected: array[4, bool],
+  selection: PromptSelection, trace: PromptTrace
 ): BatchFn =
   result = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
       {.closure, gcsafe.} =
@@ -506,10 +507,16 @@ proc playerBatch(
       if not seatConnected[call.seat]:
         result[position].error = "player disconnected"
         continue
+      let system = selection.systemPrompt()
+      trace.records.add(selection.promptRecord(system,
+        decisionUserMessage("", call.view, call.retry), "server_decision_context",
+        requestId, call.seat, call.retry))
       try:
         seatSockets[call.seat].send($( %*{
           "type": "decision", "id": requestId, "seat": call.seat,
-          "view": parseJson(call.view), "system": SystemPrompt,
+          "view": parseJson(call.view), "system": system,
+          "prompt_template": selection.promptMetadata(system,
+            decisionUserMessage("", call.view, call.retry)),
           "retry": call.retry, "timeout_seconds": timeoutSeconds
         }), TextMessage)
       except CatchableError as error:
@@ -536,6 +543,29 @@ proc playerBatch(
               answer{"id"}.getInt() != requestId:
             pending = true
             continue
+          if answer.hasKey("prompt_evidence"):
+            # Player-reported context, not authenticated generation evidence.
+            let evidence = answer["prompt_evidence"]
+            if evidence.kind != JObject or not evidence.hasKey("messages"):
+              raise newException(ValueError, "player prompt evidence must contain messages")
+            let messages = evidence["messages"]
+            if messages.kind != JArray or messages.len != 2:
+              raise newException(ValueError, "player prompt evidence requires two messages")
+            for index, role in ["system", "user"]:
+              if messages[index].kind != JObject or
+                  messages[index]{"role"}.getStr() != role or
+                  not messages[index].hasKey("content") or
+                  messages[index]["content"].kind != JString:
+                raise newException(ValueError, "invalid player prompt message")
+            if evidence["request_id"].getInt() != requestId or
+                evidence["seat"].getInt() != call.seat or
+                messages[0]["content"].getStr() != selection.systemPrompt() or
+                evidence["prompt_template"] != selection.promptMetadata(
+                  messages[0]["content"].getStr(), messages[1]["content"].getStr()):
+              raise newException(ValueError, "player prompt evidence does not match the request")
+            trace.records.add(%*{"schema": "atari57.prompt-provenance.v1",
+              "kind": "player_report", "request_id": requestId,
+              "seat": call.seat, "report": evidence})
           if answer.hasKey("action") and answer["action"].kind == JObject:
             result[position].ok = true
             result[position].action = $answer["action"]
@@ -566,9 +596,11 @@ proc runServerLoop*(
   saveReplayPath = "",
   loadReplayPath = "",
   saveScoresPath = "",
-  runtimeConfig = RuntimeConfig()
+  runtimeConfig = RuntimeConfig(),
+  selection = PromptSelection()
 ) =
   initAppState()
+  let trace = PromptTrace()
   initLock(replayArtifactLock)
   var replayLoaded = loadReplayPath.len > 0
   var replayData =
@@ -849,7 +881,7 @@ proc runServerLoop*(
               ## badly (grf-football round 2, 2026-08-27).
               echo "ERROR: SEAT ", seat, " NEVER REGISTERED — playing arcader"
               game.seatPolicyKind[seat] = "scripted"
-        engine.batch = playerBatch(seatSockets, seatConnected)
+        engine.batch = playerBatch(seatSockets, seatConnected, selection, trace)
         let records = engine.turn(
           game, turnIndex, config.turnsPerEpisode(), elapsedSeconds)
         for record in records:
@@ -1010,6 +1042,15 @@ proc runServerLoop*(
       elif saveScoresPath.len > 0:
         writeFile(saveScoresPath, scoresJson)
         echo "Scores written: ", saveScoresPath
+      var privateLines = ""
+      for record in trace.records:
+        privateLines.add($record & "\n")
+      privateLines.add($( %*{"schema": "atari57.prompt-provenance.v1",
+        "kind": "episode_summary", "source_revision": getEnv("COWORLD_SOURCE_REVISION"),
+        "game_seed": config.seed, "rom": config.rom,
+        "prompt_template": selection.promptMetadata(selection.systemPrompt(), ""),
+        "results": parseJson(scoresJson)}) & "\n")
+      writeCogameEnv("COGAME_SAVE_TRAJECTORY_URI", privateLines, "application/x-ndjson")
       echo "results: ", scoresJson
       ## EDIT 5: bounded shutdown grace. The certification runner pings
       ## /healthz and /global AFTER the player pods start, and a short episode

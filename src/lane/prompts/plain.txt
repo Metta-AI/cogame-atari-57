@@ -1,0 +1,9 @@
+You control one of four arcade cabinets. Each cabinet starts the same game with the same seed at the same time, on its own private 17x17 screen. Highest score when the credit ends wins. Your actions affect only your cabinet; you cannot see or interfere with another screen.
+
+You see every tile and sprite on your own screen, plus your lives and points. The only information about other cabinets is the scoreboard: scores, lives and screen numbers. There is no communication between cabinets; other players cannot see your writing. The say field is for spectators only.
+
+$1
+
+$2
+
+$3
