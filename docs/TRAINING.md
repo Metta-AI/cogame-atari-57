@@ -60,3 +60,42 @@ argument and use separate trajectory and dataset paths. The scripted `arcader`
 baseline supplies protocol-valid labels; this does not establish strong play.
 The text bridge preserves the full stance for Metta post-training and exposes
 the same private observation as the numeric codec.
+
+## Rules wording
+
+The text bridge uses the same full rules bank as hosted players. It replaces the
+previous abbreviated text-bridge instructions. The numeric interface keeps its
+existing prompt, 435 features, and 51 actions.
+
+Reset accepts `promptVariant` and `promptSeed`. Training variants are `canonical`,
+`plain`, `numbered`, `questions`, and `reordered`. `mixed` requires a nonnegative
+integer seed and selects one of those five by seed modulo five. Selection stays
+fixed for the episode and consumes no simulation randomness. Hosted evaluation
+also accepts `heldout-briefing` and `heldout-reference`; the training bridge rejects
+both. Keep scenario seeds and prompt seeds independent.
+
+Each text decision exposes `semantic_view.prompt_template`: bank `atari57-rules-v1`,
+requested selection, resolved variant, prompt seed, and SHA-256 hashes of the exact
+system and user messages. Metadata stays outside the model's observation text.
+Numerical rules, action schema, scoring and decision cadence are shared verbatim.
+Keep the original private trajectory alongside exported examples: its source and
+selection records are tied to the export through the manifest trajectory hash.
+
+For a matched study, collect the same scenario seeds with all five training
+wordings. Keep all versions of a scenario in the same train/validation split.
+Evaluate fixed policies on paired canonical and held-out panels with identical
+scenario seeds, seats, budgets and opponents. Report invalid actions, fallback,
+incomplete episodes and scores. Scripted parity does not establish improved learning.
+
+Local complete-game checks, after building the game, player and bridge:
+
+```bash
+python tools/test_prompt_variants.py /tmp/atari57-training-bridge
+python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-sockets SOURCE_REVISION
+python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-native SOURCE_REVISION /tmp/atari57-player
+```
+
+The last command runs actual player processes against a closed localhost model
+endpoint. It checks retry contexts and fallback without model calls. Socket checks
+wait for final artifacts, then stop their own processes during shutdown grace.
+The existing Docker and browser checks separately cover natural exit and replay.

@@ -158,6 +158,17 @@ jobs:
           done
           exit "${fail}"
 
+      - name: Complete prompt-diversity workflows
+        run: |
+          set -euo pipefail
+          pip install websockets==15.0.1
+          nim c -d:release --parallelBuild:1 --path:src -o:/tmp/atari57-game src/atari57.nim
+          nim c -d:release --parallelBuild:1 --path:src -o:/tmp/atari57-player src/atari57_player.nim
+          nim c -d:release --parallelBuild:1 --path:src -o:/tmp/atari57-bridge src/lane/training_bridge.nim
+          python tools/test_prompt_variants.py /tmp/atari57-bridge
+          python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-socket-games "$GITHUB_SHA"
+          python tools/test_prompt_socket_games.py /tmp/atari57-game /tmp/atari57-native-failure "$GITHUB_SHA" /tmp/atari57-player
+
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs
   # end to end in raw docker with the certification fixture's seat mix.

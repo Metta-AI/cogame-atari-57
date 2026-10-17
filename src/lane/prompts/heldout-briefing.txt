@@ -1,0 +1,11 @@
+Cabinet briefing
+Your task is to finish the credit with the highest score among four cabinets. You operate one private 17x17 screen. The game, seed and start time match across all four. Cabinets are isolated: no action changes another cabinet.
+
+Information briefing
+Nothing on your own screen is hidden: tiles, sprites, lives and points are all visible. Rivals expose only scores, lives and screen numbers on the scoreboard. There is no cabinet-to-cabinet communication. Other cabinets never see your writing; say is for spectators.
+
+$1
+
+$2
+
+$3

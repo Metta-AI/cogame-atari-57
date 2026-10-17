@@ -10,7 +10,7 @@ import
   std/[json, os, sysrand],
   bitworld/runtime,
   lane/sim,
-  lane/server
+  lane/server, lane/prompts
 
 proc seedPinned(configJson: string): bool =
   ## True when the runtime config EXPLICITLY names a seed (the certification
@@ -93,5 +93,7 @@ when isMainModule:
     localReplayPath,
     loadReplayPath,
     "",
-    runtimeConfig
+    runtimeConfig,
+    promptSelection(if runtimeConfig.config.len > 0: parseJson(runtimeConfig.config)
+                    else: newJObject())
   )

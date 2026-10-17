@@ -2,8 +2,9 @@
 ## seat must see, and what it must never see.
 
 import std/[json, random, strformat, strutils]
+import lane/prompts
 import lane_helpers
-import lane/[sim_types, observation, broadcast, llm, roster]
+import lane/[sim_types, observation, broadcast, roster]
 
 const RealNames = ["daveey", "daveey-1", "atari-57-highroller",
                    "atari-57-onecredit"]

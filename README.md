@@ -120,3 +120,15 @@ nim r --path:src tests/test_determinism.nim
 
 Forked from [`Metta-AI/coworld-ctf`](https://github.com/Metta-AI/coworld-ctf)
 (paintbot). Design note: [`docs/plans/2026-08-28-atari-57-design.md`](docs/plans/2026-08-28-atari-57-design.md).
+
+## Prompt diversity
+
+Set `promptVariant` in the game configuration to choose five training wordings or
+two held-out evaluation wordings. `mixed` requires an independent `promptSeed` and
+selects a training wording once per episode. Canonical hosted rules remain exact.
+See [training and matched evaluation](docs/TRAINING.md#rules-wording).
+
+Prompt selection is separate from simulation configuration: it does not change the
+binary replay format, game version, game random draws, action parsing or scoring.
+Private prompt evidence goes to `COGAME_SAVE_TRAJECTORY_URI`, never the public replay
+or results. Rebuild both game and player binaries to use the new private protocol.

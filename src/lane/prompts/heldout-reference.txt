@@ -1,0 +1,11 @@
+Competition reference
+Participants: four isolated cabinets, one controlled by you. Each has a private 17x17 screen. Initial conditions: identical game, seed and start time. Objective: highest score when the credit ends. Influence: your actions affect your own cabinet only.
+
+$1
+
+Visibility reference
+Own cabinet: complete screen, every tile and sprite, lives and points. Other cabinets: scoreboard scores, lives and screen numbers only. Communication: none between cabinets. Writing: unseen by other cabinets; say is spectator-only.
+
+$2
+
+$3

@@ -1,0 +1,11 @@
+What are you playing?
+A score attack between four isolated arcade cabinets. You play one private 17x17 screen. Every cabinet uses the same game and seed and starts at the same moment. The highest final score wins; your actions cannot help or hurt another cabinet.
+
+What can you observe or communicate?
+Your whole screen is visible: every tile, sprite, your lives and points. The scoreboard gives other cabinets' scores, lives and screen numbers, and nothing more. Cabinets cannot communicate and do not see each other's writing. Spectators alone can see say.
+
+$1
+
+$2
+
+$3
