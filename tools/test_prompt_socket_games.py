@@ -188,7 +188,7 @@ async def play(binary, player_binary, folder, config, revision):
             metadata["selection"],
             metadata["seed"],
         ) == (
-            "atari57-rules-v1",
+            "atari-57-rules-v1",
             selected,
             config["promptVariant"],
             config["promptSeed"],
@@ -229,7 +229,7 @@ async def play(binary, player_binary, folder, config, revision):
     replay_bytes = (folder / "episode.replay").read_bytes()
     for secret in (
         b"prompt_template",
-        b"atari57-rules-v1",
+        b"atari-57-rules-v1",
         b"promptSeed",
         b"PRIVATE-OPERATOR",
     ):

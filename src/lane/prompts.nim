@@ -19,7 +19,7 @@ type
   PromptTrace* = ref object
     records*: seq[JsonNode]
 
-const PromptBankVersion* = "atari57-rules-v1"
+const PromptBankVersion* = "atari-57-rules-v1"
 
 proc promptSelection*(node: JsonNode): PromptSelection =
   if node.kind != JObject:

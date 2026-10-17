@@ -48,7 +48,7 @@ for rom in roms:
                 while observation["kind"] == "decision":
                     view = observation["semantic_view"]
                     metadata = view.pop("prompt_template")
-                    assert metadata["bank"] == "atari57-rules-v1"
+                    assert metadata["bank"] == "atari-57-rules-v1"
                     assert (
                         metadata["selection"],
                         metadata["seed"],

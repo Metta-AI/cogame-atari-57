@@ -48,7 +48,7 @@ uv run --package metta-posttrain metta-posttrain collect-teacher \
   --output train_dir/atari57/chomper.jsonl \
   --source-revision "$(git -C /path/to/cogame-atari-57 rev-parse HEAD)" \
   --episodes 16 --max-decisions 700 --players 4 \
-  --game atari57 --action-schema-revision atari57-stance-v1 \
+  --game atari-57 --action-schema-revision atari57-stance-v1 \
   --teacher-policy atari57-arcader
 uv run --package metta-posttrain metta-posttrain export \
   --trajectory train_dir/atari57/chomper.jsonl \
@@ -74,7 +74,7 @@ fixed for the episode and consumes no simulation randomness. Hosted evaluation
 also accepts `heldout-briefing` and `heldout-reference`; the training bridge rejects
 both. Keep scenario seeds and prompt seeds independent.
 
-Each text decision exposes `semantic_view.prompt_template`: bank `atari57-rules-v1`,
+Each text decision exposes `semantic_view.prompt_template`: bank `atari-57-rules-v1`,
 requested selection, resolved variant, prompt seed, and SHA-256 hashes of the exact
 system and user messages. Metadata stays outside the model's observation text.
 Numerical rules, action schema, scoring and decision cadence are shared verbatim.
