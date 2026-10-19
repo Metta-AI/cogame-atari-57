@@ -149,24 +149,9 @@ on a rune boundary. Slicing a string by byte index anywhere on the path to the
 replay is forbidden: a byte-truncated multi-byte character renders fine in a
 browser and then fails a strict UTF-8 parser.
 
-## Private prompt provenance
+## Prompt selection
 
-Game configuration accepts `promptVariant` and `promptSeed`, as documented in
-[training](TRAINING.md#rules-wording). Selection is fixed for an episode, outside
-`GameConfig` and the hashed replay state. Each private decision frame includes
-`prompt_template` beside the exact selected `system` string. Its user hash covers
-the server's view and retry suffix, before the player's private operator guidance.
-
-The shipped player returns `prompt_evidence` with the exact system/user pair it
-configured or submitted, including its operator guidance and retry suffix. The
-game checks the request identity, selected system and hashes, then stores the
-record in a `player_report` envelope. External clients may omit this report.
-These records establish configured or player-reported prompt intent; they are
-not authenticated evidence of model generation.
-
-`COGAME_SAVE_TRAJECTORY_URI` receives JSON Lines with schema
-`atari57.prompt-provenance.v1`: server decision contexts, player reports, and an
-episode summary containing source revision, game seed, selection and results.
-Set `COWORLD_SOURCE_REVISION` when launching the game to identify its build.
-Treat this artifact as private: it can contain operator prompts. It is separate
-from the public binary replay, event stream and results document.
+Game config accepts promptVariant and an independent promptSeed. The server sends
+the selected system prompt through the existing decision frame. Selection stays
+fixed for the episode and outside hashed replay state. The player keeps composing
+its private operator guidance locally. No extra player reporting protocol is needed.

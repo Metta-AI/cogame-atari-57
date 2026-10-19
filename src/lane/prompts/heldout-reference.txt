@@ -6,6 +6,7 @@ $1
 Visibility reference
 Own cabinet: complete screen, every tile and sprite, lives and points. Other cabinets: scoreboard scores, lives and screen numbers only. Communication: none between cabinets. Writing: unseen by other cabinets; say is spectator-only.
 
-$2
+Control reference
+Decision spacing: 5 seconds. Stance duration: 5 seconds. Autopilot: deterministic, 24 updates per second. Automated duties: pathfinding, dodging, aiming and firing. Policy duties: select an objective and risk tolerance.
 
-$3
+$2

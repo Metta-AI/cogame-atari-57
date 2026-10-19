@@ -16,10 +16,8 @@ type
   PromptSelection* = object
     variant*: PromptVariant
     seed*: int
-  PromptTrace* = ref object
-    records*: seq[JsonNode]
 
-const PromptBankVersion* = "atari-57-rules-v1"
+const PromptBankVersion* = "atari-57-rules-v2"
 
 proc promptSelection*(node: JsonNode): PromptSelection =
   if node.kind != JObject:
@@ -46,13 +44,15 @@ proc promptMetadata*(selection: PromptSelection, system, user: string): JsonNode
     "selection": $selection.variant, "seed": selection.seed,
     "system_sha256": sha256(system).toHex, "user_sha256": sha256(user).toHex}
 
-const CanonicalSystemPrompt* = """
+const Introduction = """
 You are ONE cog at ONE cabinet in a four-cabinet arcade. All four cabinets are
 running the SAME game from the SAME seed at the SAME moment, each on its own
 private 17x17 screen. You cannot see, touch, help or hurt any other cabinet, and
 nothing you do can change their screens. This is a SCORE ATTACK: the highest
 score on the board when the credit runs out wins.
-Your screen is 17 columns by 17 rows. (col 0, row 0) is the TOP-LEFT of YOUR
+"""
+
+const Mechanics = """Your screen is 17 columns by 17 rows. (col 0, row 0) is the TOP-LEFT of YOUR
 screen. col grows RIGHT, row grows DOWN.
 You have 3 lives. Losing your last life ends YOUR game; your points freeze and
 the other three play on. Points are never taken away.
@@ -75,14 +75,20 @@ Three cartridges exist; "rom" in your view tells you which one is loaded.
             pays 100. Their bolts and any marcher reaching row 13 cost a life.
             Three bunkers absorb 3 hits each. Clearing the wave pays 300 and the
             next wave starts lower.
-YOU CAN SEE YOUR WHOLE SCREEN: every tile, every sprite, your lives, your points.
+"""
+
+const Visibility = """YOU CAN SEE YOUR WHOLE SCREEN: every tile, every sprite, your lives, your points.
 Nothing on your own screen is hidden. You can also see the SCOREBOARD - the other
 three cabinets' scores, lives and screen numbers - and nothing else about them.
 You CANNOT talk to anyone and nobody sees anything you write.
-Every 5 seconds you set your STANCE for the next 5 seconds. A deterministic
+"""
+
+const Cadence = """Every 5 seconds you set your STANCE for the next 5 seconds. A deterministic
 autopilot runs it 24 times a second: it does the pathfinding, the dodging, the
 aiming and the firing. You choose WHAT to go for and HOW MUCH RISK to take.
-Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
+"""
+
+const OutputFormat = """Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
 Schema:
 {"note":"<=160 chars, your reasoning",
  "mode":"clear"|"hunt"|"strike"|"safe"|"bank",
@@ -105,6 +111,8 @@ Schema:
  "fire":"auto"|"hold"|"never",   // GALLERY only; ignored by the other roms
  "say":"<=48 chars"}        // spectators only; no cabinet ever sees it
 """
+
+const CanonicalSystemPrompt* = Introduction & Mechanics & Visibility & Cadence & OutputFormat
 
 proc operatorBlock*(prompt: string): string =
   ## The seat's own PLAYER_PROMPT, under a heading that tells the model how
@@ -130,25 +138,4 @@ const Templates = [
 proc systemPrompt*(selection: PromptSelection): string =
   if selection.selectedVariant == pvCanonical:
     return CanonicalSystemPrompt
-  let
-    mechanics = CanonicalSystemPrompt.find("Your screen is 17 columns")
-    visibility = CanonicalSystemPrompt.find("YOU CAN SEE YOUR WHOLE SCREEN")
-    cadence = CanonicalSystemPrompt.find("Every 5 seconds you set")
-    schema = CanonicalSystemPrompt.find("Reply with a single JSON object")
-  doAssert mechanics >= 0 and visibility > mechanics and cadence > visibility and schema > cadence
-  Templates[ord(selection.selectedVariant) - 1] % [
-    CanonicalSystemPrompt[mechanics ..< visibility], CanonicalSystemPrompt[cadence ..< schema],
-    CanonicalSystemPrompt[schema .. ^1]]
-
-proc decisionUserMessage*(operatorPrompt, view: string, retry: bool): string =
-  result = userMessage(operatorPrompt, view)
-  if retry:
-    result.add("\n\nYour previous reply was unusable. Return only JSON.")
-
-proc promptRecord*(selection: PromptSelection, system, user, kind: string,
-                   requestId, seat: int, retry: bool): JsonNode =
-  %*{"schema": "atari57.prompt-provenance.v1", "kind": kind,
-    "request_id": requestId, "seat": seat, "retry": retry,
-    "prompt_template": selection.promptMetadata(system, user),
-    "messages": [{"role": "system", "content": system},
-                 {"role": "user", "content": user}]}
+  Templates[ord(selection.selectedVariant) - 1] % [Mechanics, OutputFormat]

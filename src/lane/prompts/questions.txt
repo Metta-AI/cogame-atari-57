@@ -6,6 +6,7 @@ Your whole screen is visible: every tile, sprite, your lives and points. The sco
 
 $1
 
-$2
+How do your choices control play?
+You issue a stance every 5 seconds, and it governs the next 5 seconds. A deterministic autopilot runs 24 times per second to find paths, dodge, aim and fire. You choose the objective and how much risk to take.
 
-$3
+$2

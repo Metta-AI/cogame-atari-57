@@ -130,5 +130,5 @@ See [training and matched evaluation](docs/TRAINING.md#rules-wording).
 
 Prompt selection is separate from simulation configuration: it does not change the
 binary replay format, game version, game random draws, action parsing or scoring.
-Private prompt evidence goes to `COGAME_SAVE_TRAJECTORY_URI`, never the public replay
-or results. Rebuild both game and player binaries to use the new private protocol.
+Training observations retain the selected bank, wording, seed and exact message
+hashes. The runtime keeps its existing game/player protocol.

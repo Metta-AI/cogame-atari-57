@@ -134,7 +134,8 @@ proc reset(command: JsonNode): JsonNode =
   if command["players"].getInt() != 4:
     raise newException(ValueError, "Atari 57 has exactly four isolated lanes")
   selection = promptSelection(command)
-  if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
+  if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference} and
+      (not command.hasKey("split") or command["split"].getStr() != "validation"):
     raise newException(ValueError, "held-out prompt variants are evaluation-only")
   if numericMode and selection.variant != pvCanonical:
     raise newException(ValueError, "prompt variants require the text bridge")

@@ -4,6 +4,6 @@ You see every tile and sprite on your own screen, plus your lives and points. Th
 
 $1
 
-$2
+Every 5 seconds, choose a stance that lasts for the next 5 seconds. Your deterministic autopilot updates 24 times per second and handles pathfinding, dodging, aiming and firing. You decide what to pursue and how much risk to accept.
 
-$3
+$2

@@ -6,6 +6,7 @@ Nothing on your own screen is hidden: tiles, sprites, lives and points are all v
 
 $1
 
-$2
+Control briefing
+Provide one stance for each 5-second interval. The stance applies for all 5 seconds; deterministic control executes 24 updates each second. Navigation, evasive movement, aim and firing are automated. Your responsibility is choosing what to pursue and the degree of risk.
 
-$3
+$2

@@ -2,8 +2,10 @@
 ##
 ## This process is DELIBERATELY thin. It connects to its seat, sends ONE
 ## Sprite v1 chat message carrying its registration, and then only receives.
-## Inference runs in this player using its private operator prompt. The game
-## owns stance validation, fallback, and the deterministic autopilot.
+## Every decision happens inside the GAME server, because that is the only
+## container the platform injects the `anthropic_api_key` coworld secret
+## into, and because keeping the autopilot server-side is what makes the
+## recorded ACTION LOG reproducible with no network in the loop.
 ##
 ##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
 ##   PLAYER_SCRIPTED      arcader | hoover         -> this seat is scripted
@@ -125,22 +127,16 @@ when isMainModule:
           if decision{"type"}.getStr() == "decision":
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
-            let
-              user = decisionUserMessage(prompt, $decision["view"], decision["retry"].getBool())
-              metadata = decision["prompt_template"]
-              selection = promptSelection(%*{"promptVariant": metadata["selection"],
-                "promptSeed": metadata["seed"]})
-            reply["prompt_evidence"] = selection.promptRecord(decision["system"].getStr(),
-              user, "player_configured_context", decision["id"].getInt(),
-              decision["seat"].getInt(), decision["retry"].getBool())
             if kind == "prompt" and client.disabled:
               reply["cause"] = %"no_credentials"
               reply["error"] = %"no_credentials"
             else:
               try:
+                var user = userMessage(prompt, $decision["view"])
+                if decision["retry"].getBool():
+                  user.add("\n\nYour previous reply was unusable. Return only JSON.")
                 let request = client.requestFor(
                   decision["system"].getStr(), user, -1)
-                reply["prompt_evidence"]["kind"] = %"player_request_context"
                 let response = client.curl.post(request.url,
                   request.headers, request.body, timeoutSeconds)
                 reply["action"] = extractJsonObject(
