@@ -1,0 +1,12 @@
+1. Your role
+There are four separate cabinets. You play one. All four start the same game, seed and time, each with a private 17x17 screen. Win by having the highest score at the end of the credit. No cabinet can affect another.
+
+$1
+
+2. Available information
+Your entire screen is visible, including every tile, sprite, your lives and points. Other cabinets reveal only their scoreboard scores, lives and screen numbers. You cannot communicate with them. No other cabinet receives your writing; say is spectator-only.
+
+3. Control loop
+Set your stance once every 5 seconds for the following 5 seconds. At 24 updates per second, a deterministic autopilot handles pathfinding, dodging, aiming and firing. Your choices set the objective and risk level.
+
+$2

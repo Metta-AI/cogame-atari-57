@@ -4,3 +4,7 @@
 /.scratch/
 nim.cfg
 *.replay
+
+# Python workflow checks
+__pycache__/
+*.pyc

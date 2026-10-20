@@ -21,7 +21,7 @@ import
   std/[json, options, os, strutils],
   bitworld/spriteprotocol,
   whisky, curly,
-  lane/[llm, sim_config, stances]
+  lane/[llm, sim_config, stances, prompts]
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.

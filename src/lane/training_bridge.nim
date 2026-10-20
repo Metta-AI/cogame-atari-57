@@ -2,9 +2,9 @@
 ## The game simulation and player observation are the hosted implementations.
 
 import std/[hashes, json, os]
-import sim, observation, baselines, stances, control, roster
+import sim, observation, baselines, stances, control, roster, prompts
 
-const SystemPrompt = "Play one Atari 57 lane. Reply with one JSON stance: " &
+const NumericSystemPrompt = "Play one Atari 57 lane. Reply with one JSON stance: " &
   "{\"mode\":\"clear|hunt|strike|safe|bank\"," &
   "\"zone\":\"none|nw|ne|sw|se|centre|left|right|top|bottom\"," &
   "\"risk\":0.5,\"lead_ticks\":14,\"fire\":\"auto|hold|never\"}. " &
@@ -25,6 +25,7 @@ var
   actingSeat: int
   rom = "chomper"
   numericMode = false
+  selection: PromptSelection
 
 proc features(view: JsonNode): JsonNode =
   result = newJArray()
@@ -99,7 +100,7 @@ proc currentDecision(): JsonNode =
     "typed_question": newJNull(),
     "turn": turn,
     "messages": [
-      {"role": "system", "content": SystemPrompt},
+      {"role": "system", "content": (if numericMode: NumericSystemPrompt else: selection.systemPrompt())},
       {"role": "user", "content": game.laneViewJson(
         actingSeat, turn, game.config.maxTicks div game.config.turnTicks,
         chosenStances[actingSeat], haveStance[actingSeat])},
@@ -116,6 +117,13 @@ proc currentDecision(): JsonNode =
       },
     },
   }
+  if not numericMode:
+    result["inference_mode"] = %"text_action"
+    result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
+    result["semantic_view"]["prompt_template"] = selection.promptMetadata(
+      result["messages"][0]["content"].getStr(), result["messages"][1]["content"].getStr())
+    result["action_schema"]["properties"]["note"] = %*{"type": "string", "maxLength": 160}
+    result["action_schema"]["properties"]["say"] = %*{"type": "string", "maxLength": 48}
   if numericMode:
     result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
     result["action_schema"] = %*{"type": "object", "properties": {
@@ -125,6 +133,12 @@ proc currentDecision(): JsonNode =
 proc reset(command: JsonNode): JsonNode =
   if command["players"].getInt() != 4:
     raise newException(ValueError, "Atari 57 has exactly four isolated lanes")
+  selection = promptSelection(command)
+  if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference} and
+      (not command.hasKey("split") or command["split"].getStr() != "validation"):
+    raise newException(ValueError, "held-out prompt variants are evaluation-only")
+  if numericMode and selection.variant != pvCanonical:
+    raise newException(ValueError, "prompt variants require the text bridge")
   var config = defaultGameConfig()
   config.update($(%*{"rom": rom,
     "seed": int(hash(command["seed"].getStr()) and hash(high(int))),

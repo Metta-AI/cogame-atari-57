@@ -38,25 +38,89 @@ variants. A local `DecisionEnvironment` full episode completed on each ROM with
 24, 24, and 12 learner steps respectively. This verifies interface execution,
 not improvement from training. Use a timestep limit for every training run.
 
-From a Metta checkout containing the generic Coworld bridge, collect and
-export seed-separated teacher trajectories:
+From a `Metta-AI/posttraining-research` checkout, use the public collector and
+exporter to build a matched
+teacher corpus. Run from a clean, committed game checkout and retain the private
+trajectory alongside the exported examples:
 
 ```bash
-uv run --package metta-posttrain metta-posttrain collect-teacher \
-  --bridge /tmp/atari57-training-bridge \
-  --bridge-command /tmp/atari57-training-bridge \
-  --output train_dir/atari57/chomper.jsonl \
-  --source-revision "$(git -C /path/to/cogame-atari-57 rev-parse HEAD)" \
-  --episodes 16 --max-decisions 700 --players 4 \
-  --game atari57 --action-schema-revision atari57-stance-v1 \
-  --teacher-policy atari57-arcader
-uv run --package metta-posttrain metta-posttrain export \
-  --trajectory train_dir/atari57/chomper.jsonl \
-  --output train_dir/atari57/chomper-dataset
+uv run --package metta-posttraining python - <<'PYTHON'
+from pathlib import Path
+import subprocess
+
+from metta_training.language.dataset import export_dataset
+from metta_training.language.private_io import write_private
+from metta_training.language.rollout import collect
+from metta_training.prompt_selection import PromptSelection
+
+game_repo = Path("/path/to/cogame-atari-57")
+assert not subprocess.check_output(
+    ["git", "-C", str(game_repo), "status", "--porcelain"], text=True
+).strip()
+revision = subprocess.check_output(
+    ["git", "-C", str(game_repo), "rev-parse", "HEAD"], text=True
+).strip()
+bridge = Path("/tmp/atari57-training-bridge")
+output = Path("train_dir/atari57/chomper")
+output.mkdir(parents=True, mode=0o700)
+trajectories = []
+for prompt_seed in range(5):
+    trajectory = output / f"wording-{prompt_seed}.jsonl"
+    episodes = collect(
+        bridge, trajectory, [str(seed) for seed in range(16)], revision,
+        game="atari-57", action_schema_revision="atari57-stance-v1",
+        teacher_policy="atari57-arcader", players=4, max_decisions=700,
+        bridge_command=[str(bridge), "chomper"],
+        prompt_selection=PromptSelection(
+            bank="atari-57-rules-v2", variant="mixed", seed=prompt_seed
+        ),
+    )
+    assert len(episodes) == 16 and all(episode.status == "completed" for episode in episodes)
+    trajectories.append(trajectory)
+combined = output / "trajectories.jsonl"
+write_private(combined, "".join(path.read_text() for path in trajectories))
+export_dataset(combined, output / "dataset")
+PYTHON
 ```
 
-For `brickfall` or `gallery`, pass the ROM as a second `--bridge-command`
-argument and use separate trajectory and dataset paths. The scripted `arcader`
-baseline supplies protocol-valid labels; this does not establish strong play.
-The text bridge preserves the full stance for Metta post-training and exposes
-the same private observation as the numeric codec.
+For `brickfall` or `gallery`, change the bridge's ROM argument and output path.
+The five collections cover every training wording for each of the 16 scenario
+seeds. Export splitting depends only on the scenario seed, so related wordings
+cannot cross splits. The scripted `arcader` supplies labels; this does not
+establish strong play. The text bridge preserves the full stance and private view.
+
+## Rules wording
+
+The text bridge uses the same full rules bank as hosted players. It replaces the
+previous abbreviated text-bridge instructions. The numeric interface keeps its
+existing prompt, 435 features, and 51 actions.
+
+Reset accepts `promptVariant` and `promptSeed`. Training variants are `canonical`,
+`plain`, `numbered`, `questions`, and `reordered`. `mixed` requires a nonnegative
+integer seed and selects one of those five by seed modulo five. Selection stays
+fixed for the episode and consumes no simulation randomness. Hosted evaluation
+also accepts `heldout-briefing` and `heldout-reference`; the bridge permits
+these only with `split=validation`. Keep scenario seeds and prompt seeds independent.
+
+Each text decision exposes `semantic_view.prompt_template`: bank `atari-57-rules-v2`,
+requested selection, resolved variant, prompt seed, and SHA-256 hashes of the exact
+system and user messages. Metadata stays outside the model's observation text.
+Role, visibility and control-loop explanations vary across the bank. Numerical
+cartridge rules, scoring and the JSON action schema remain verbatim.
+Keep the original private trajectory alongside exported examples: its source and
+selection records are tied to the export through the manifest trajectory hash.
+
+For a matched study, collect the same scenario seeds with all five training
+wordings. Keep all versions of a scenario in the same train/validation split.
+Evaluate fixed policies on paired canonical and held-out panels with identical
+scenario seeds, seats, budgets and opponents. Report invalid actions, fallback,
+incomplete episodes and scores. Scripted parity does not establish improved learning.
+
+Local complete-game check, after building the bridge:
+
+```bash
+python tools/test_prompt_variants.py /tmp/atari57-training-bridge
+```
+
+This covers every wording and all three cartridges with matched scripted actions
+and outcomes. Existing native, Docker and browser checks cover runtime and replay.
