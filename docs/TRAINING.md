@@ -38,7 +38,8 @@ variants. A local `DecisionEnvironment` full episode completed on each ROM with
 24, 24, and 12 learner steps respectively. This verifies interface execution,
 not improvement from training. Use a timestep limit for every training run.
 
-From a Metta checkout, use the public collector and exporter to build a matched
+From a `Metta-AI/posttraining-research` checkout, use the public collector and
+exporter to build a matched
 teacher corpus. Run from a clean, committed game checkout and retain the private
 trajectory alongside the exported examples:
 
