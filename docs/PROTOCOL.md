@@ -148,3 +148,10 @@ scrubber.
 on a rune boundary. Slicing a string by byte index anywhere on the path to the
 replay is forbidden: a byte-truncated multi-byte character renders fine in a
 browser and then fails a strict UTF-8 parser.
+
+## Prompt selection
+
+Game config accepts promptVariant and an independent promptSeed. The server sends
+the selected system prompt through the existing decision frame. Selection stays
+fixed for the episode and outside hashed replay state. The player keeps composing
+its private operator guidance locally. No extra player reporting protocol is needed.

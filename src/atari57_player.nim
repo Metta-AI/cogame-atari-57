@@ -6,7 +6,7 @@ import
   std/[httpclient, json, options, os, strutils, sysrand],
   bitworld/spriteprotocol,
   whisky, curly,
-  lane/[llm, sim_config, stances, numeric_codec]
+  lane/[llm, sim_config, stances, numeric_codec, prompts]
 
 const
   ConnectAttempts = 240      ## 240 x 500 ms = 2 minutes of dialling.
@@ -136,7 +136,7 @@ when isMainModule:
                 if decision["retry"].getBool():
                   user.add("\n\nYour previous reply was unusable. Return only JSON.")
                 let request = client.requestFor(
-                  decision["system"].getStr(), user)
+                  decision["system"].getStr(), user, -1)
                 let response = client.curl.post(request.url,
                   request.headers, request.body, timeoutSeconds)
                 reply["action"] = extractJsonObject(
