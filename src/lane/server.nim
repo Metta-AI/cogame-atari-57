@@ -541,7 +541,7 @@ proc playerBatch(
             result[position].ok = true
             result[position].action = $answer["action"]
           else:
-            result[position].error = answer{"error"}.getStr("player fallback")
+            result[position].error = "player completion rejected"
             result[position].cause = answer{"cause"}.getStr("transport_error")
         except CatchableError:
           result[position].cause = "parse_error"
@@ -941,6 +941,9 @@ proc runServerLoop*(
           sockets[i].send("", BinaryMessage)
         for chunk in chunkSpritePacket(wirePacket, MaxWsFrameBytes):
           sockets[i].send(blobFromBytes(chunk), BinaryMessage)
+        if quitAfterFrame:
+          sockets[i].send($(%*{"type": "episode_end", "tick": game.tickCount,
+            "reason": game.endReason, "rule": game.endRule}), TextMessage)
       except CatchableError:
         {.gcsafe.}:
           withLock appState.lock:

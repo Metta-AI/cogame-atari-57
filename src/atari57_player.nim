@@ -88,12 +88,6 @@ when isMainModule:
     quit("atari-57 player: game never accepted a connection", 1)
   echo "atari-57 player: connected"
 
-  # Each session is wrapped: whisky's receiveMessage RAISES on a close frame or
-  # a truncated read (only a timeout returns none), and mummy's send only
-  # QUEUES — so the game's own quit(0) can outrun the flushed frame. A naive
-  # player exits 1 on that race and fails certification intermittently
-  # (cogame-raid 0.1.3). Exiting 0 on a dead socket is the fix.
-  #
   # REGISTRATION IS RE-SENT, NOT SENT ONCE. Joins are slot-sequential, so a
   # seat whose slot is not the next open one is not admitted until the lower
   # slots have joined — and the lobby sends frames to a socket before it is
@@ -116,6 +110,13 @@ when isMainModule:
           continue                    ## a read timeout, not a closed socket
         if received.get().kind == TextMessage:
           let decision = parseJson(received.get().data)
+          if decision["type"].getStr() == "episode_end":
+            let completed = decision["reason"].getStr() != "fault"
+            echo "atari-57 player: episode ended: ", decision["reason"].getStr(),
+              "/", decision["rule"].getStr()
+            socket.close()
+            numericClient.close()
+            quit(if completed: 0 else: 1)
           if decision{"type"}.getStr() == "decision":
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
@@ -128,23 +129,23 @@ when isMainModule:
               let response = parseJson(numericClient.postContent(numericUrl, $request))
               reply["action"] = candidateStance(view, response["choice"].getInt())
             elif kind == "prompt" and client.disabled:
-              reply["cause"] = %"no_credentials"
-              reply["error"] = %"no_credentials"
+              reply["cause"] = %"no_endpoint"
+              reply["error"] = %"no_endpoint"
             else:
               try:
                 var user = userMessage(prompt, $decision["view"])
                 if decision["retry"].getBool():
                   user.add("\n\nYour previous reply was unusable. Return only JSON.")
                 let request = client.requestFor(
-                  decision["system"].getStr(), user, -1)
+                  decision["system"].getStr(), user, decision["seat"].getInt())
                 let response = client.curl.post(request.url,
                   request.headers, request.body, timeoutSeconds)
                 reply["action"] = extractJsonObject(
-                  client.textOf(response, "", request.url))
+                  client.textOf(response, ""))
               except CatchableError as error:
                 reply["cause"] = %(if client != nil and client.throttled:
                     "throttled" else: "transport_error")
-                reply["error"] = %error.msg
+                reply["error"] = %"player completion rejected"
             socket.send($reply, TextMessage)
           continue
         inc sessionFrames
@@ -166,10 +167,13 @@ when isMainModule:
       break
     inc reconnects
     echo "atari-57 player: re-dialling the seat (attempt ", reconnects, ")"
-    socket = dial(ReconnectAttempts)
-    if socket == nil:
-      echo "atari-57 player: game is no longer listening, exiting cleanly"
+    socket.close()
+    let reconnected = dial(ReconnectAttempts)
+    if reconnected == nil:
+      echo "atari-57 player: game disappeared without an episode-end message"
       break
+    socket = reconnected
     echo "atari-57 player: reconnected, re-registering"
+  socket.close()
   numericClient.close()
-  quit(0)
+  quit("atari-57 player: connection ended before episode completion", 1)

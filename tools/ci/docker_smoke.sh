@@ -38,7 +38,7 @@
 #                              job loads it in a real browser -- that is the
 #                              only replay in CI that is known to be readable
 #                              by this game's own viewer.
-#   ANTHROPIC_API_KEY          if set, forwarded to prompt player containers
+#   COWORLD_LLM_ENDPOINT          if set, forwarded to prompt player containers
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -188,10 +188,10 @@ chmod 777 "${work_dir}"
 # --------------------------------------------------------------------------
 docker network create "${network}" >/dev/null
 
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "ANTHROPIC_API_KEY present: prompt players can call the model"
+if [ -n "${COWORLD_LLM_ENDPOINT:-}" ]; then
+  echo "COWORLD_LLM_ENDPOINT present: prompt players can call the sidecar"
 else
-  echo "no ANTHROPIC_API_KEY: prompt players use scripted fallback"
+  echo "no COWORLD_LLM_ENDPOINT: prompt players use scripted fallback"
 fi
 
 echo "starting game container (${image} ${game_bin}) ..."
@@ -209,8 +209,9 @@ docker run -d --name "${prefix}-game" \
 for ((slot = 0; slot < seats; slot++)); do
   eval "penv=( $(cat "${work_dir}/env-${slot}.args") )"
   eval "pcmd=( $(cat "${work_dir}/cmd-${slot}.args") )"
-  if [ -n "${ANTHROPIC_API_KEY:-}" ] && [[ " ${penv[*]} " == *"PLAYER_PROMPT="* ]]; then
-    penv+=(-e "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}")
+  if [ -n "${COWORLD_LLM_ENDPOINT:-}" ] && [[ " ${penv[*]} " == *"PLAYER_PROMPT="* ]]; then
+    penv+=(-e "COWORLD_LLM_ENDPOINT=${COWORLD_LLM_ENDPOINT}"
+      -e "COWORLD_LLM_MODEL=${COWORLD_LLM_MODEL:-anthropic/claude-haiku-4.5}")
   fi
   docker run -d --name "${prefix}-p${slot}" --network "${network}" \
     -e COWORLD_PLAYER_WS_URL="ws://${prefix}-game:${port}/player?slot=${slot}&token=token-${slot}" \

@@ -10,7 +10,10 @@ the ROM. The numeric codec exposes 435 fixed values from that private view and
 51 actions: `0` takes the ordinary `arcader` stance; `1..50` select one of five
 modes and ten zones. The game still parses the selected stance and owns its
 legality, fallback, score, and replay. The codec fixes risk, lead time, and
-fire for actions `1..50`; it does not cover every legal stance.
+fire for actions `1..50`; it does not cover every legal stance. Numeric decisions
+use a separate system prompt describing this codec. The ordinary text bridge
+retains the hosted stance prompt. Numeric captures do not establish native
+stance-prompt or model-serving parity.
 
 Build and test from this repository root:
 

@@ -25,7 +25,7 @@ proc fakeBatch(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
       of "malformed":
         reply.ok = true
         reply.action = "no stance"
-      of "throttled", "no_credentials", "timeout":
+      of "throttled", "no_endpoint", "timeout":
         reply.cause = behavior
         reply.error = behavior
       else:
@@ -151,7 +151,7 @@ proc testBudgetGuard() =
   report("budget guard keeps lanes commanded")
 
 proc testNoCredentialsFallsBackInstantly() =
-  resetFake("no_credentials")
+  resetFake("no_endpoint")
   var config = testConfig(RomChomper, 5_140_913)
   config.turnSpacingMs = 0
   var game = seatedSim(config)
@@ -161,7 +161,7 @@ proc testNoCredentialsFallsBackInstantly() =
   check((getMonoTime() - started).inMilliseconds < 2000,
     "missing credentials held the turn")
   check(batchCalls.len == 1, "missing credentials were retried")
-  check(records.anyIt(parseJson(it){"cause"}.getStr() == "no_credentials"),
+  check(records.anyIt(parseJson(it){"cause"}.getStr() == "no_endpoint"),
     "the player cause did not reach the replay")
   report("missing player credentials yield typed fallbacks")
 
