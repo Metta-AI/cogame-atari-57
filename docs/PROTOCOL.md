@@ -39,6 +39,11 @@ A seat registers, acknowledges frames, and answers decision requests.
    request ID ties each reply to its turn. The game sends all live seats'
    requests before waiting, bounds the wait, and owns the fallback.
 
+5. EPISODE END. After the final player frame, the game sends
+   `{"type":"episode_end","tick":N,"reason":"...","rule":"..."}`.
+   Players finish successfully only after receiving this message with a non-fault
+   reason. A closed socket without this message is an incomplete episode.
+
 The view is the seat's own screen as a 17-line ASCII map plus structured `threats`, `targets`,
 `zones`, its own counters, and a four-row SCOREBOARD strip carrying every
 rival's {alias, score, lives, screen} and nothing else. The reply is:

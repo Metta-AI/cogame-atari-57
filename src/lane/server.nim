@@ -941,6 +941,9 @@ proc runServerLoop*(
           sockets[i].send("", BinaryMessage)
         for chunk in chunkSpritePacket(wirePacket, MaxWsFrameBytes):
           sockets[i].send(blobFromBytes(chunk), BinaryMessage)
+        if quitAfterFrame:
+          sockets[i].send($(%*{"type": "episode_end", "tick": game.tickCount,
+            "reason": game.endReason, "rule": game.endRule}), TextMessage)
       except CatchableError:
         {.gcsafe.}:
           withLock appState.lock:
