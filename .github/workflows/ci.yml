@@ -158,6 +158,12 @@ jobs:
           done
           exit "${fail}"
 
+      - name: Complete prompt-diversity workflows
+        run: |
+          set -euo pipefail
+          nim c -d:release --parallelBuild:1 --path:src -o:/tmp/atari57-bridge src/lane/training_bridge.nim
+          python tools/test_prompt_variants.py /tmp/atari57-bridge
+
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs
   # end to end in raw docker with the certification fixture's seat mix.

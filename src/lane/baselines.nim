@@ -163,9 +163,10 @@ proc arcaderStance*(sim: SimServer, seat: int,
   let lane = sim.lanes[seat]
   var view = BaselineView(over: lane.phase == lpOver, lives: lane.lives,
     powerTicksLeft: lane.powerTicksLeft, nearestEta: FarEta)
-  let threats = laneThreats(lane, sim.config.preset)
+  let field = threatField(lane, sim.config.preset)
+  let threats = laneThreats(lane, field)
   if threats.len > 0: view.nearestEta = threats[0].etaTicks
-  for target in laneTargets(lane, sim.config.preset):
+  for target in laneTargets(lane, sim.config.preset, field):
     view.targets.add(BaselineTarget(kind: target.kind, distTicks: target.distTicks,
       value: target.value, zone: parseZone(target.zone)))
   arcaderStance(view, params)

@@ -1,6 +1,6 @@
 ## The bridge must consume the hosted prompt and exact seeded four-seat engine.
 include "../src/lane/training_bridge"
-import lane/llm as native_prompt
+import lane/prompts as native_prompt
 
 for cartridge in ["chomper", "brickfall", "gallery"]:
   rom = cartridge
@@ -8,7 +8,7 @@ for cartridge in ["chomper", "brickfall", "gallery"]:
   doAssert game.config.seed == 7, "the bridge changed the submitted seed"
   doAssert game.config.minPlayers == defaultGameConfig().minPlayers
   doAssert game.players.len == 4, "the bridge omitted registered seats"
-  doAssert first["messages"][0]["content"].getStr() == native_prompt.SystemPrompt
+  doAssert first["messages"][0]["content"].getStr() == native_prompt.CanonicalSystemPrompt
   var config = defaultGameConfig()
   config.update($(%*{"rom": cartridge, "seed": 7}))
   var ordinary = initSimServer(config)
@@ -70,6 +70,6 @@ for cartridge in ["chomper", "brickfall", "gallery"]:
 for cartridge in ["chomper", "brickfall", "gallery"]:
   rom = cartridge
   let issued = reset(%*{"seed": "7", "players": 4})
-  doAssert issued["messages"][0]["content"].getStr() != native_prompt.SystemPrompt
+  doAssert issued["messages"][0]["content"].getStr() != native_prompt.CanonicalSystemPrompt
   doAssert issued["messages"][0]["content"].getStr().contains("choice")
   doAssert parseJson(issued["messages"][1]["content"].getStr()) == issued["semantic_view"]

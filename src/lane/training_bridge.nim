@@ -1,13 +1,8 @@
-## Headless Atari 57 lanes for Metta post-training.
-## The game simulation and player observation are the hosted implementations.
-
+## Headless Atari 57 lanes using the hosted engine and private observations.
 import std/[json, os, strutils]
-import sim, observation, baselines, stances, control, roster, llm
+import sim, observation, baselines, stances, control, roster, numeric_codec, prompts
 
-const
-  NumericFeatures = 435
-  NumericActions = 1 + 5 * 10
-  NumericSystemPrompt = SystemPrompt[0 ..< SystemPrompt.find("Reply with a single JSON object")] & """
+const NumericSystemPrompt = CanonicalSystemPrompt[0 ..< CanonicalSystemPrompt.find("Reply with a single JSON object")] & """
 Choose one of the numeric controller actions below. Reply only with
 {"choice": INTEGER}, where INTEGER is from 0 through 50.
 Choice 0 runs the shipped arcader baseline using only your current private view.
@@ -19,8 +14,6 @@ The zone is selected by code MOD 10: 0 none, 1 nw, 2 ne, 3 sw, 4 se,
 These actions fix risk to 0.2 for safe/bank and 0.55 otherwise, lead_ticks to
 12 and fire to auto. They cover a subset of the ordinary stance controller.
 """
-  Zones = ["none", "nw", "ne", "sw", "se", "centre", "left", "right",
-    "top", "bottom"]
 
 var
   game: SimServer
@@ -31,47 +24,7 @@ var
   actingSeat: int
   rom = "chomper"
   numericMode = false
-
-proc features(view: JsonNode): JsonNode =
-  result = newJArray()
-  for name in ["chomper", "brickfall", "gallery"]:
-    result.add(%(if view["rom"].getStr() == name: 1 else: 0))
-  for key in ["turn", "of"]: result.add(view[key])
-  result.add(view["clock"]["left_s"])
-  let you = view["you"]
-  for key in ["lives", "points", "score", "screen"]: result.add(you[key])
-  for key in ["col", "row", "x", "y", "speed_tiles_s"]:
-    result.add(you["avatar"][key])
-  for key in ["power_ticks_left", "chain", "best_chain", "par"]:
-    result.add(you[key])
-  result.add(%(if you["record"].getBool(): 1 else: 0))
-  for player in view["scoreboard"]:
-    for key in ["score", "lives", "screen"]: result.add(player[key])
-  for zone in ["nw", "ne", "sw", "se", "centre"]:
-    for key in ["value", "min_threat_eta"]:
-      result.add(view["zones"][zone][key])
-  for line in view["screen_map"]:
-    for ch in line.getStr(): result.add(%ord(ch))
-  for index in 0 ..< 12:
-    if index < view["targets"].len:
-      let target = view["targets"][index]
-      for key in ["col", "row", "value", "dist_ticks"]:
-        result.add(target[key])
-      result.add(%(if target["safe"].getBool(): 1 else: 0))
-      var zoneIndex = 0
-      for position, zone in Zones:
-        if target["zone"].getStr() == zone: zoneIndex = position
-      result.add(%zoneIndex)
-    else:
-      for _ in 0 ..< 6: result.add(%0)
-  for index in 0 ..< 8:
-    if index < view["threats"].len:
-      let threat = view["threats"][index]
-      for key in ["col", "row", "eta_ticks", "dist_tiles"]:
-        result.add(threat[key])
-    else:
-      for _ in 0 ..< 4: result.add(%0)
-  doAssert result.len == NumericFeatures
+  selection: PromptSelection
 
 proc candidates(): JsonNode =
   result = newJArray()
@@ -85,20 +38,6 @@ proc stanceJson(stance: LaneStance): JsonNode =
     "lead_ticks": stance.leadTicks, "fire": $stance.fire,
     "note": stance.note, "say": stance.say}
 
-proc candidateStance(choice: int, seat: int): JsonNode =
-  doAssert choice in 0 ..< NumericActions
-  if choice == 0:
-    return stanceJson(arcaderStance(parseJson(game.laneViewJson(seat,
-      game.gameTicksElapsed() div game.config.turnTicks,
-      game.config.maxTicks div game.config.turnTicks,
-      chosenStances[seat], haveStance[seat]))))
-  let code = choice - 1
-  let mode = Mode(code div Zones.len)
-  let zone = Zones[code mod Zones.len]
-  %*{"mode": $mode, "zone": zone,
-    "risk": (if mode in [mdSafe, mdBank]: 0.2 else: 0.55),
-    "lead_ticks": 12, "fire": "auto", "note": "numeric stance", "say": ""}
-
 proc currentDecision(): JsonNode =
   let turn = game.gameTicksElapsed() div game.config.turnTicks
   result = %*{
@@ -108,7 +47,7 @@ proc currentDecision(): JsonNode =
     "typed_question": newJNull(),
     "turn": turn,
     "messages": [
-      {"role": "system", "content": SystemPrompt},
+      {"role": "system", "content": (if numericMode: NumericSystemPrompt else: selection.systemPrompt())},
       {"role": "user", "content": game.laneViewJson(
         actingSeat, turn, game.config.maxTicks div game.config.turnTicks,
         chosenStances[actingSeat], haveStance[actingSeat])},
@@ -125,6 +64,13 @@ proc currentDecision(): JsonNode =
       },
     },
   }
+  if not numericMode:
+    result["inference_mode"] = %"text_action"
+    result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
+    result["semantic_view"]["prompt_template"] = selection.promptMetadata(
+      result["messages"][0]["content"].getStr(), result["messages"][1]["content"].getStr())
+    result["action_schema"]["properties"]["note"] = %*{"type": "string", "maxLength": 160}
+    result["action_schema"]["properties"]["say"] = %*{"type": "string", "maxLength": 48}
   if numericMode:
     result["messages"][0]["content"] = %NumericSystemPrompt
     result["semantic_view"] = parseJson(result["messages"][1]["content"].getStr())
@@ -135,6 +81,12 @@ proc currentDecision(): JsonNode =
 proc reset(command: JsonNode): JsonNode =
   if command["players"].getInt() != 4:
     raise newException(ValueError, "Atari 57 has exactly four isolated lanes")
+  selection = promptSelection(command)
+  if selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference} and
+      (not command.hasKey("split") or command["split"].getStr() != "validation"):
+    raise newException(ValueError, "held-out prompt variants are evaluation-only")
+  if numericMode and selection.variant != pvCanonical:
+    raise newException(ValueError, "prompt variants require the text bridge")
   var config = defaultGameConfig()
   config.update($(%*{"rom": rom,
     "seed": parseInt(command["seed"].getStr())}))
@@ -169,7 +121,7 @@ proc step(command: JsonNode): JsonNode =
         submitted["choice"].getInt() >= NumericActions):
       return %*{"kind": "rejected", "reason": "reply must contain an integer choice from 0 through 50"}
     reply =
-      if numericMode: candidateStance(submitted["choice"].getInt(), actingSeat)
+      if numericMode: candidateStance(parseJson(currentDecision()["messages"][1]["content"].getStr()), submitted["choice"].getInt())
       else: submitted
     stance = parseLaneStance(reply,
       chosenStances[actingSeat], haveStance[actingSeat])

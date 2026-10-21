@@ -42,7 +42,7 @@ import
   bitworld/client as bitworldClient, bitworld/spriteprotocol, bitworld/runtime,
   mummy,
   sim, global, replays, broadcast, replay_runtime, events, wire_constants,
-  control, stances, baselines, decide, llm
+  control, stances, baselines, decide, prompts
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -488,7 +488,8 @@ proc parseRegistration(
 
 proc playerBatch(
   seatSockets: array[4, WebSocket],
-  seatConnected: array[4, bool]
+  seatConnected: array[4, bool],
+  selection: PromptSelection
 ): BatchFn =
   result = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
       {.closure, gcsafe.} =
@@ -509,7 +510,7 @@ proc playerBatch(
       try:
         seatSockets[call.seat].send($( %*{
           "type": "decision", "id": requestId, "seat": call.seat,
-          "view": parseJson(call.view), "system": SystemPrompt,
+          "view": parseJson(call.view), "system": selection.systemPrompt(),
           "retry": call.retry, "timeout_seconds": timeoutSeconds
         }), TextMessage)
       except CatchableError as error:
@@ -566,7 +567,8 @@ proc runServerLoop*(
   saveReplayPath = "",
   loadReplayPath = "",
   saveScoresPath = "",
-  runtimeConfig = RuntimeConfig()
+  runtimeConfig = RuntimeConfig(),
+  selection = PromptSelection()
 ) =
   initAppState()
   initLock(replayArtifactLock)
@@ -849,7 +851,7 @@ proc runServerLoop*(
               ## badly (grf-football round 2, 2026-08-27).
               echo "ERROR: SEAT ", seat, " NEVER REGISTERED — playing arcader"
               game.seatPolicyKind[seat] = "scripted"
-        engine.batch = playerBatch(seatSockets, seatConnected)
+        engine.batch = playerBatch(seatSockets, seatConnected, selection)
         let records = engine.turn(
           game, turnIndex, config.turnsPerEpisode(), elapsedSeconds)
         for record in records:

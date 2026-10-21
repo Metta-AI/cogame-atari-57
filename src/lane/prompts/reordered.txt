@@ -1,0 +1,9 @@
+At this arcade you operate a single cabinet in a four-cabinet score attack. All cabinets run the same game from the same seed simultaneously, with private 17x17 screens. Your cabinet cannot influence any other. Highest score at the end of the credit wins.
+
+Your observation contains your complete screen, all its tiles and sprites, your lives and points. For rivals you receive only scoreboard scores, lives and screen numbers. No communication with rivals is possible. Your writing is invisible to other cabinets; say addresses spectators only.
+
+Choose the objective and acceptable risk in a stance lasting 5 seconds. Renew that stance every 5 seconds. A deterministic autopilot carries it out 24 times per second, taking care of pathfinding, dodging, aiming and firing.
+
+$1
+
+$2
