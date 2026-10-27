@@ -271,6 +271,11 @@ proc parseLaneStance*(
   if usable == 0:
     raise newException(StanceError, "reply carried no usable stance field")
 
+proc actionJson*(stance: LaneStance): JsonNode =
+  %*{"note": stance.note, "mode": $stance.mode, "zone": $stance.zone,
+    "risk": float(stance.riskMilli) / 1000.0, "lead_ticks": stance.leadTicks,
+    "fire": $stance.fire, "say": stance.say}
+
 proc risk*(stance: LaneStance): float {.inline.} =
   ## The quantised risk as a fraction. Lives OUTSIDE the determinism boundary
   ## (the autopilot may use floats; the sim may not).

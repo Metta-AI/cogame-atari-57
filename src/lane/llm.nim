@@ -1,7 +1,11 @@
 ## The ordinary prompt player calls the native Coworld sidecar only.
 ## The game owns fallback when no endpoint or usable completion exists.
 
-import std/[json, os, strutils], curly, sim_types, stances
+import
+  std/[json, options, os, strutils, tables],
+  bitworld/decision_trajectory,
+  curly,
+  sim_types
 
 const AnthropicVersion = "2023-06-01"
 
@@ -58,3 +62,43 @@ proc textOf*(client: LlmClient, response: Response, error: string): string =
       result.add(contentBlock{"text"}.getStr())
   if payload{"stop_reason"}.getStr() == "max_tokens" and '{' notin result:
     raise newException(LlmError, "native reply ended before a JSON action")
+
+proc responseEvidence*(attempt: var DecisionAttempt, headers: HttpHeaders, body: string) =
+  ## Preserve native metadata before the existing domain completion parser runs.
+  attempt.rawResponse = %body
+  var receivedHeaders = initTable[string, string]()
+  for (key, value) in headers:
+    receivedHeaders[key] = value
+  attempt.responseHeaders = some(receivedHeaders)
+  for key in ["request-id", "x-request-id"]:
+    if headers.contains(key):
+      attempt.providerRequestId = some(headers[key])
+      break
+  if headers.contains("X-Softmax-Llm-Call-Id"):
+    attempt.platformCallId = some(headers["X-Softmax-Llm-Call-Id"])
+  for header in ["X-Coworld-Checkpoint-Sha256", "X-Coworld-Tokenizer-Sha256",
+      "X-Coworld-Chat-Template-Sha256"]:
+    if headers.contains(header):
+      case header
+      of "X-Coworld-Checkpoint-Sha256": attempt.modelIdentity = some(headers[header])
+      of "X-Coworld-Tokenizer-Sha256": attempt.tokenizerIdentity = some(headers[header])
+      else: attempt.chatTemplateSha256 = some(headers[header])
+
+proc completionEvidence*(attempt: var DecisionAttempt, payload: JsonNode) =
+  attempt.model = some(payload["model"].getStr())
+  attempt.stopReason = some(payload["stop_reason"].getStr())
+  if payload.hasKey("usage"):
+    attempt.inputTokens = some(payload["usage"]["input_tokens"].getInt())
+    attempt.outputTokens = some(payload["usage"]["output_tokens"].getInt())
+  if payload.hasKey("sampling_evidence") and payload["sampling_evidence"].kind != JNull:
+    let sampling = payload["sampling_evidence"]
+    var promptIds, sampledIds: seq[int]
+    var probabilities: seq[float]
+    for token in sampling["prompt_token_ids"]: promptIds.add(token.getInt())
+    for token in sampling["completion_token_ids"]: sampledIds.add(token.getInt())
+    attempt.promptTokenIds = some(promptIds)
+    attempt.sampledTokenIds = some(sampledIds)
+    if sampling["behavior_log_probs"].kind != JNull:
+      for probability in sampling["behavior_log_probs"]: probabilities.add(probability.getFloat())
+      attempt.behaviorLogprobs = some(probabilities)
+    attempt.stopReason = some(sampling["stop_reason"].getStr())

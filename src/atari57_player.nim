@@ -3,8 +3,8 @@
 ## PLAYER_NUMERIC_URL points to a Metta frozen-policy /choice endpoint.
 
 import
-  std/[httpclient, json, options, os, strutils, sysrand],
-  bitworld/spriteprotocol,
+  std/[httpclient, json, monotimes, options, os, strutils, sysrand, times],
+  bitworld/[spriteprotocol, decision_trajectory],
   whisky, curly,
   lane/[llm, sim_config, stances, numeric_codec, prompts]
 
@@ -120,6 +120,8 @@ when isMainModule:
           if decision{"type"}.getStr() == "decision":
             var reply = %*{"type": "action", "id": decision["id"]}
             let timeoutSeconds = decision["timeout_seconds"].getInt()
+            var evidence = newDecisionAttempt($decision["id"].getInt() & "-" &
+              $decision["seat"].getInt(), label, if kind == "prompt": aoModel else: aoUnknown)
             if numericUrl.len > 0:
               let view = decision["view"]
               var mask = newJArray()
@@ -138,14 +140,29 @@ when isMainModule:
                   user.add("\n\nYour previous reply was unusable. Return only JSON.")
                 let request = client.requestFor(
                   decision["system"].getStr(), user, decision["seat"].getInt())
+                evidence.prompt = %*[{"role": "system", "content": decision["system"]},
+                  {"role": "user", "content": user}]
+                evidence.request = parseJson(request.body)
+                evidence.model = some(client.model)
+                evidence.decoder = %*{"max_tokens": client.maxOutputTokens}
+                socket.send($( %*{"type": "attempt_started", "id": decision["id"],
+                  "training_attempt": attemptEvidenceJson(evidence)}), TextMessage)
+                let started = getMonoTime()
                 let response = client.curl.post(request.url,
                   request.headers, request.body, timeoutSeconds)
-                reply["action"] = extractJsonObject(
-                  client.textOf(response, ""))
+                evidence.latencyMs = some(float((getMonoTime() - started).inMilliseconds))
+                evidence.responseEvidence(response.headers, response.body)
+                socket.send($( %*{"type": "attempt_response", "id": decision["id"],
+                  "training_attempt": attemptEvidenceJson(evidence)}), TextMessage)
+                let text = client.textOf(response, "")
+                evidence.completionEvidence(parseJson(response.body))
+                evidence.response = %text
+                reply["action"] = extractJsonObject(text)
               except CatchableError as error:
                 reply["cause"] = %(if client != nil and client.throttled:
                     "throttled" else: "transport_error")
-                reply["error"] = %"player completion rejected"
+                reply["error"] = reply["cause"]
+            reply["training_attempt"] = attemptEvidenceJson(evidence)
             socket.send($reply, TextMessage)
           continue
         inc sessionFrames

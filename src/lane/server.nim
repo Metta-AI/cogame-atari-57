@@ -36,10 +36,12 @@
 ## `kind != TextMessage` guard (ctf-lineage players register over
 ## `BinaryMessage`).
 
+import training_capture
+
 import
-  std/[algorithm, json, locks, monotimes, nativesockets, os, strutils, tables,
+  std/[algorithm, json, locks, monotimes, nativesockets, options, os, strutils, tables,
        times],
-  bitworld/client as bitworldClient, bitworld/spriteprotocol, bitworld/runtime,
+  bitworld/client as bitworldClient, bitworld/spriteprotocol, bitworld/[runtime, decision_trajectory],
   mummy,
   sim, global, replays, broadcast, replay_runtime, events, wire_constants,
   control, stances, baselines, decide, prompts
@@ -61,7 +63,7 @@ type
     loadingReplayUri: string
     currentReplayUri: string
     chatMessages: Table[WebSocket, string]
-    actionMessages: Table[WebSocket, string]
+    actionMessages: Table[WebSocket, seq[string]]
     nextDecisionId: int
     playerIndices: Table[WebSocket, int]
     playerAddresses: Table[WebSocket, string]
@@ -133,7 +135,7 @@ proc markSocketClosed(websocket: WebSocket): bool =
 proc initAppState() =
   initLock(appState.lock)
   appState.chatMessages = initTable[WebSocket, string]()
-  appState.actionMessages = initTable[WebSocket, string]()
+  appState.actionMessages = initTable[WebSocket, seq[string]]()
   appState.nextDecisionId = 0
   appState.playerIndices = initTable[WebSocket, int]()
   appState.playerAddresses = initTable[WebSocket, string]()
@@ -405,7 +407,9 @@ proc websocketHandler(
       {.gcsafe.}:
         withLock appState.lock:
           if websocket.isPlayerWebSocket() and not appState.replayLoaded:
-            appState.actionMessages[websocket] = message.data
+            if message.data.len <= 1_048_576 and
+                appState.actionMessages.mgetOrPut(websocket, @[]).len < 4:
+              appState.actionMessages.mgetOrPut(websocket, @[]).add(message.data)
   of ErrorEvent, CloseEvent:
     var who = ""
     {.gcsafe.}:
@@ -521,31 +525,51 @@ proc playerBatch(
       for position, call in calls:
         if result[position].ok or result[position].error.len > 0:
           continue
-        var raw = ""
+        var messages: seq[string]
         {.gcsafe.}:
           withLock appState.lock:
             let socket = seatSockets[call.seat]
             if appState.actionMessages.hasKey(socket):
-              raw = appState.actionMessages[socket]
+              messages = appState.actionMessages[socket]
               appState.actionMessages.del(socket)
-        if raw.len == 0:
+        if messages.len == 0:
           pending = true
           continue
-        try:
-          let answer = parseJson(raw)
-          if answer{"type"}.getStr() != "action" or
-              answer{"id"}.getInt() != requestId:
-            pending = true
-            continue
-          if answer.hasKey("action") and answer["action"].kind == JObject:
-            result[position].ok = true
-            result[position].action = $answer["action"]
-          else:
-            result[position].error = "player completion rejected"
-            result[position].cause = answer{"cause"}.getStr("transport_error")
-        except CatchableError:
-          result[position].cause = "parse_error"
-          result[position].error = "invalid player response"
+        for raw in messages:
+          if result[position].ok or result[position].error.len > 0: break
+          try:
+            let answer = parseJson(raw)
+            if answer{"id"}.getInt() != requestId:
+              continue
+            let kind = answer{"type"}.getStr()
+            if kind notin ["attempt_started", "attempt_response", "action"]: continue
+            if answer.hasKey("training_attempt"):
+              let supplied = answer["training_attempt"]
+              discard readAttemptEvidence(supplied)
+              let previous = result[position].evidence
+              if previous != nil and previous.kind == JObject:
+                for key in ["attempt_id", "policy", "origin", "prompt", "request"]:
+                  if supplied[key] != previous[key]:
+                    raise newException(ValueError, "private attempt identity changed")
+                if previous["raw_response"].kind != JNull:
+                  for key in ["raw_response", "response_headers", "platform_call_id", "provider_request_id"]:
+                    if supplied[key] != previous[key]:
+                      raise newException(ValueError, "private provider response changed")
+              result[position].evidence = supplied
+            if kind != "action":
+              pending = true
+              continue
+            if answer.hasKey("action") and answer["action"].kind == JObject:
+              result[position].ok = true
+              result[position].action = $answer["action"]
+            else:
+              result[position].error = "player completion rejected"
+              result[position].cause = answer{"cause"}.getStr("transport_error")
+          except CatchableError:
+            result[position].cause = "parse_error"
+            result[position].error = "invalid player response"
+        if not result[position].ok and result[position].error.len == 0:
+          pending = true
       if not pending:
         break
       sleep(10)
@@ -617,6 +641,11 @@ proc runServerLoop*(
       if replayLoaded: move(initializedReplay.sim) else: initSimServer(config)
     lastTick = getMonoTime()
     collectedEvents: seq[SimEvent] = @[]
+  let trajectoryUri = getEnv(CogameSaveTrajectoryUriEnv)
+  let capture = if trajectoryUri.len > 0 and not replayLoaded:
+      some(newMatchCapture(getEnv("COWORLD_EPISODE_ID"),
+        getEnv("COWORLD_GAME_VERSION"), getEnv("COWORLD_SOURCE_REVISION"), config.seed, config.rom))
+    else: none(MatchCapture)
   game.collectEvents = eventsPath.len > 0
   block:
     ## Bake the board BEFORE the listener opens: a viewer's first-message
@@ -853,7 +882,8 @@ proc runServerLoop*(
               game.seatPolicyKind[seat] = "scripted"
         engine.batch = playerBatch(seatSockets, seatConnected, selection)
         let records = engine.turn(
-          game, turnIndex, config.turnsPerEpisode(), elapsedSeconds)
+          game, turnIndex, config.turnsPerEpisode(), elapsedSeconds, selection)
+        if capture.isSome: capture.get().beginTurn(engine, game, selection)
         for record in records:
           replayWriter.writeChat(tickTime(game.tickCount), 0, record)
           game.applyControlRecord(record)
@@ -888,6 +918,9 @@ proc runServerLoop*(
       let phaseBefore = game.phase
       try:
         game.step(cmds)
+        if capture.isSome and phaseBefore == Playing:
+          capture.get().recordTick(cmds, game)
+          if game.phase == GameOver: capture.get().flushTurn(game.tickCount, true)
       except SimGuardError as guard:
         echo "atari-57: SIM GUARD tripped at tick ", game.tickCount, ": ",
           guard.msg
@@ -1015,6 +1048,9 @@ proc runServerLoop*(
       elif saveScoresPath.len > 0:
         writeFile(saveScoresPath, scoresJson)
         echo "Scores written: ", saveScoresPath
+      if capture.isSome:
+        capture.get().finishMatch(game)
+        capture.get().trajectory.writeEventsToUri(trajectoryUri)
       echo "results: ", scoresJson
       ## EDIT 5: bounded shutdown grace. The certification runner pings
       ## /healthz and /global AFTER the player pods start, and a short episode
