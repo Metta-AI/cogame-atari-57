@@ -39,6 +39,11 @@ A seat registers, acknowledges frames, and answers decision requests.
    request ID ties each reply to its turn. The game sends all live seats'
    requests before waiting, bounds the wait, and owns the fallback.
 
+5. EPISODE END. After the final player frame, the game sends
+   `{"type":"episode_end","tick":N,"reason":"...","rule":"..."}`.
+   Players finish successfully only after receiving this message with a non-fault
+   reason. A closed socket without this message is an incomplete episode.
+
 The view is the seat's own screen as a 17-line ASCII map plus structured `threats`, `targets`,
 `zones`, its own counters, and a four-row SCOREBOARD strip carrying every
 rival's {alias, score, lives, screen} and nothing else. The reply is:
@@ -105,11 +110,11 @@ so the episode ends `complete/*` rather than `deadline`).
 | `COGAME_PLAYER_FAILURE_URI` | where a lobby no-show is declared |
 | `COGAME_HOST` / `COGAME_PORT` | the listener |
 
-The game pod has no model credential. A hosted prompt player uses
-`AWS_ENDPOINT_URL_BEDROCK_RUNTIME/v1/messages` and the uploaded
-`BEDROCK_MODEL`. Upload
-model policies with `--use-bedrock`; locally, supply a provider key to the
-player process.
+The game pod has no model credential. Prompt players call
+`COWORLD_LLM_ENDPOINT/v1/messages` with the uploaded `COWORLD_LLM_MODEL`.
+Upload model policies with `--use-llm --llm-model`. Local prompt players
+also require a reachable sidecar. Every request carries its issued player slot.
+Provider credentials and legacy endpoints are unused.
 
 Routes: `GET /healthz`, `GET /player?slot=N&token=T` (websocket),
 `GET /global` (websocket), `GET /replay` (websocket), `GET /client/global`,

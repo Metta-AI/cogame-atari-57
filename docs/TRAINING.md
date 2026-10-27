@@ -10,7 +10,10 @@ the ROM. The numeric codec exposes 435 fixed values from that private view and
 51 actions: `0` takes the ordinary `arcader` stance; `1..50` select one of five
 modes and ten zones. The game still parses the selected stance and owns its
 legality, fallback, score, and replay. The codec fixes risk, lead time, and
-fire for actions `1..50`; it does not cover every legal stance.
+fire for actions `1..50`; it does not cover every legal stance. Numeric decisions
+use a separate system prompt describing this codec. The ordinary text bridge
+retains the hosted stance prompt. Numeric captures do not establish native
+stance-prompt or model-serving parity.
 
 Build and test from this repository root:
 
@@ -157,3 +160,21 @@ native baseline across complete games, all three ROMs, and three seeds. It
 also parses every one of the 51 decoded stances at each decision.
 CUDA optimizer/export, independent frozen replay, and full default-variant
 ordinary episodes still require checkpoint evidence.
+
+## Private authoritative episode capture
+
+Set `COGAME_SAVE_TRAJECTORY_URI` on the game, with the runtime identity variables
+`COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`, and `COWORLD_SOURCE_REVISION`. The
+game writes the canonical Bitworld decision JSONL separately from the public
+replay. Families distinguish cartridge and game seed. Each issued live-lane
+decision retains its private observation, exact model request and response,
+received headers and native call IDs when supplied, rejected attempts, the
+selected parsed stance, and the actual encoded controls and hashes per tick.
+The final event carries the terminal status and results. Missing HTTP responses
+remain explicitly incomplete attempts, never invented completions.
+
+Registered scripted policies have teacher origin; an absent registration, engine
+fallback, or external policy cannot claim that origin. Accepted means the
+parser output matches the executed stance. It does not establish model sampling
+provenance or teacher quality. Keep private trajectories out of public replay
+bundles and source control.

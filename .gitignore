@@ -8,3 +8,6 @@ nim.cfg
 # Python workflow checks
 __pycache__/
 *.pyc
+
+# Local private capture evidence and validation outputs.
+.scratch/

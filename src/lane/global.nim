@@ -711,7 +711,7 @@ proc applyGlobalViewerMessage*(
       else:
         state.replayCommands.add(item.text)
     of SpriteClientInputMessage, SpriteClientReadyMessage,
-        SpriteClientDebugSpriteMessage:
+        SpriteClientDebugSpriteMessage, SpriteClientSpritesOffMessage:
       discard
 
 proc applyPlayerViewerMessage*(
@@ -729,7 +729,7 @@ proc applyPlayerViewerMessage*(
     of SpriteClientDebugSpriteMessage:
       state.pendingDebugSprites.add(item.debugSprites)
     of SpriteClientInputMessage, SpriteClientMouseMoveMessage,
-        SpriteClientMouseButtonMessage, SpriteClientReadyMessage:
+        SpriteClientMouseButtonMessage, SpriteClientReadyMessage, SpriteClientSpritesOffMessage:
       discard
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 ## Frozen numeric policies use only the ordinary private lane view.
 import std/json
-import stances
+import stances, baselines
 
 const
   NumericFeatures* = 435
@@ -56,41 +56,7 @@ proc candidateStance*(view: JsonNode, choice: int): JsonNode =
     return %*{"mode": $mode, "zone": Zones[code mod Zones.len],
       "risk": (if mode in [mdSafe, mdBank]: 0.2 else: 0.55),
       "lead_ticks": 12, "fire": "auto", "note": "numeric stance", "say": ""}
-  var mode = "clear"
-  var zone = "none"
-  var risk = 0.5
-  var lead = 10
-  var fire = "auto"
-  var note = "take the nearest scoring thing"
-  var say = "clearing"
-  let you = view["you"]
-  if you["state"].getStr() == "over":
-    return %*{"mode":"safe", "zone":"none", "risk":0.0,
-      "lead_ticks":12, "fire":"never", "note":"the credit is spent", "say":"backing off"}
-  if you["power_ticks_left"].getInt() > 48:
-    mode = "strike"; risk = 0.85; lead = 10
-    note = "power window open: cash the chain"; say = "chain time"
-  elif view["threats"].len > 0 and view["threats"][0]["eta_ticks"].getInt() >= 0 and view["threats"][0]["eta_ticks"].getInt() <= 20:
-    mode = "safe"; risk = 0.15; lead = 8
-    note = "threat inside 20 ticks: survive first"; say = "backing off"
-  else:
-    var bestValue = -1
-    var powerFound = false
-    var powerZone = "none"
-    for target in view["targets"]:
-      let distance = target["dist_ticks"].getInt()
-      if target["kind"].getStr() == "power" and distance >= 0 and distance <= 72 and not powerFound:
-        powerFound = true; powerZone = target["zone"].getStr()
-      if target["value"].getInt() > bestValue:
-        bestValue = target["value"].getInt(); zone = target["zone"].getStr()
-    if powerFound:
-      mode = "hunt"; zone = powerZone; lead = 16
-      note = "power pellet in reach"; say = "power up"
-    else:
-      lead = 14
-  if you["lives"].getInt() == 1:
-    risk = risk / 2
-    if mode == "hunt": mode = "clear"
-    say = "screen's mine"
-  %*{"mode":mode, "zone":zone, "risk":risk, "lead_ticks":lead,
-    "fire":fire, "note":note, "say":say}
+  let stance = arcaderStance(view)
+  %*{"mode": $stance.mode, "zone": $stance.zone,
+    "risk": float(stance.riskMilli) / 1000.0, "lead_ticks": stance.leadTicks,
+    "fire": $stance.fire, "note": stance.note, "say": stance.say}

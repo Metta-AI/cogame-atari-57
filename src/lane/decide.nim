@@ -22,8 +22,9 @@
 ## failure mode leaves a lane uncommanded: the autopilot always has a stance —
 ## this turn's, else last turn's, else `arcader`'s.
 
-import std/[json, monotimes, os, times]
-import sim, stances, baselines, observation
+import std/[json, monotimes, options, os, times]
+import bitworld/decision_trajectory
+import sim, stances, baselines, observation, prompts
 
 type
   BatchCall* = object
@@ -37,6 +38,7 @@ type
     action*: string
     cause*: string
     error*: string
+    evidence*: JsonNode
 
   BatchFn* = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
     {.closure, gcsafe.}
@@ -51,6 +53,13 @@ type
     label*: string
     registered*: bool
 
+  TurnDecision* = object
+    observation*: JsonNode
+    attempts*: seq[DecisionAttempt]
+    selectedAttemptId*: Option[string]
+    executedAction*: JsonNode
+    status*: ActionStatus
+
   DecisionEngine* = object
     batch*: BatchFn
     seats*: seq[SeatPolicy]
@@ -60,6 +69,7 @@ type
     batchStarted*: bool
     llmOff*: bool              ## the budget guard fired; scripted from here on
     records*: seq[string]
+    decisions*: seq[TurnDecision]
 
 proc initDecisionEngine*(sim: SimServer): DecisionEngine =
   result.seats = newSeq[SeatPolicy](4)
@@ -112,7 +122,8 @@ proc turn*(
   engine: var DecisionEngine,
   sim: SimServer,
   turnIndex, turnsPerEpisode: int,
-  elapsedSeconds: int
+  elapsedSeconds: int,
+  selection = PromptSelection()
 ): seq[string] =
   ## Runs ONE decision turn and installs each seat's stance. Returns the
   ## replay chat records this turn produced. NEVER raises: every failure path
@@ -137,12 +148,19 @@ proc turn*(
       echo "atari-57: budget guard fired at turn ", turnIndex,
         "; remaining turns play scripted"
 
+  engine.decisions = newSeq[TurnDecision](engine.seats.len)
+  for seat in 0 ..< engine.seats.len:
+    engine.decisions[seat] = TurnDecision(status: asFallback,
+      observation: parseJson(laneViewJson(sim, seat, turnIndex, turnsPerEpisode,
+        engine.stances[seat], engine.haveStance[seat])))
+
   # --- which seats need a call? -------------------------------------------
   var open: seq[int]
   for seat in 0 ..< engine.seats.len:
     if sim.laneIsOver(seat):
       # A finished lane is dropped from every later batch: there is nothing
       # left to decide and the autopilot commands 0 regardless.
+      engine.decisions[seat].observation = newJNull()
       var stance = engine.scriptedFor(sim, seat, blArcader)
       stance.source = stScripted
       engine.stances[seat] = stance
@@ -223,31 +241,56 @@ proc turn*(
     var stillOpen: seq[int]
     for position, seat in open:
       var cause = "parse_error"
+      var evidence = newDecisionAttempt($turnIndex & "-" & $seat & "-" & $attempt,
+        engine.seats[seat].label, aoUnknown)
       try:
         let reply = replies[position]
+        if reply.evidence != nil and reply.evidence.kind != JNull:
+          evidence = readAttemptEvidence(reply.evidence)
+          evidence.attemptId = $turnIndex & "-" & $seat & "-" & $attempt
+          if evidence.origin in {aoTeacher, aoHuman}: evidence.origin = aoUnknown
         if not reply.ok:
           cause = if reply.cause.len > 0: reply.cause else: "transport_error"
           raise newException(ValueError, reply.error)
         var stance = parseLaneStance(
           parseJson(reply.action), engine.stances[seat],
           engine.haveStance[seat])
+        let proposal = stance.actionJson()
+        if evidence.origin == aoModel:
+          let independentlyParsed = parseLaneStance(extractJsonObject(evidence.response.getStr()),
+            engine.stances[seat], engine.haveStance[seat])
+          evidence.parsedAction = independentlyParsed.actionJson()
+          if evidence.parsedAction != proposal:
+            raise newException(ValueError, "model response differs from submitted stance")
+        else:
+          evidence.parsedAction = proposal
         stance.source = stLlm
         stance.latencyMs = latency
         engine.repairMissingFields(sim, seat, stance)
+        if evidence.parsedAction == stance.actionJson():
+          evidence.accepted = true
+          engine.decisions[seat].selectedAttemptId = some(evidence.attemptId)
+          engine.decisions[seat].status = asAccepted
+        else:
+          stance.source = stFallback
+          evidence.rejectionReason = some("engine repaired parsed stance")
         engine.stances[seat] = stance
         engine.haveStance[seat] = true
       except CatchableError as error:
         result.add(fallbackRecord(turnIndex, seat, attempt + 1, cause,
-                                  error.msg))
+                                  cause))
         lastCause[seat] = cause
         echo "atari-57 llm: seat ", seat, " attempt ", attempt + 1,
-          " failed, will retry if a retry is left: ", error.msg
+          " failed, will retry if a retry is left: ", cause
+        evidence.rejectionReason = some(if evidence.origin == aoModel and evidence.rawResponse.kind == JNull:
+          "incomplete_native_attempt: " & cause & " before HTTP response" else: cause)
         stillOpen.add(seat)
+      engine.decisions[seat].attempts.add(evidence)
     open = stillOpen
     inc attempt
     var retryable: seq[int]
     for seat in open:
-      if lastCause[seat] in ["throttled", "no_credentials"]:
+      if lastCause[seat] in ["throttled", "no_endpoint"]:
         failFast.add(seat)
       else:
         retryable.add(seat)
@@ -266,3 +309,20 @@ proc turn*(
     ## "falling back" is the phrase phase 60 greps the GAME log for.
     echo "atari-57 llm: seat ", seat, " falling back to arcader (", cause,
       ") on turn ", turnIndex
+
+  for seat in 0 ..< engine.seats.len:
+    let action = engine.stances[seat].actionJson()
+    engine.decisions[seat].executedAction = action
+    if engine.stances[seat].source == stScripted and not sim.laneIsOver(seat):
+      let intentional = engine.seats[seat].registered
+      var teacher = newDecisionAttempt($turnIndex & "-" & $seat & "-teacher",
+        "scripted-" & $engine.seats[seat].baseline, if intentional: aoTeacher else: aoFallback)
+      teacher.prompt = %*[{"role": "system", "content": selection.systemPrompt()},
+        {"role": "user", "content": $engine.decisions[seat].observation}]
+      teacher.parsedAction = action
+      teacher.response = %($action)
+      teacher.accepted = intentional
+      engine.decisions[seat].attempts.add(teacher)
+      if intentional:
+        engine.decisions[seat].selectedAttemptId = some(teacher.attemptId)
+        engine.decisions[seat].status = asAccepted
