@@ -151,7 +151,12 @@ proc testSourceGuards() =
   report("the Ping->Pong branch is present and no TextMessage guard exists")
 
 proc testEpisodeRunsAndWritesArtifacts() =
-  for slot in 0 ..< 4:
+  for slot in 0 ..< 2:
+    createThread(seatThreads[slot], seatMain, slot)
+  # Early seats can acknowledge frames while the remaining player containers
+  # start. Their readiness must not accelerate the lobby's join deadline.
+  sleep(2000)
+  for slot in 2 ..< 4:
     createThread(seatThreads[slot], seatMain, slot)
   # The fixture is short by design; the shutdown grace is the long pole.
   let deadline = epochTime() + 180.0
@@ -211,7 +216,7 @@ when isMainModule:
     "rom": "chomper", "seed": 5140913, "num_agents": 4, "minPlayers": 4,
     "startWaitTicks": 0, "gameOverTicks": 1,
     "maxTicks": 360, "minTicks": 0, "turnTicks": 120, "turnSpacingMs": 0,
-    "lobbyJoinTimeoutTicks": 2880, "fastMode": true,
+    "lobbyJoinTimeoutTicks": 240, "fastMode": true,
     "players": [{"name": "P1"}, {"name": "P2"}, {"name": "P3"}, {"name": "P4"}],
     "tokens": ["token-0", "token-1", "token-2", "token-3"],
     "slots": [{"alias": "RED"}, {"alias": "BLUE"}, {"alias": "GREEN"},
