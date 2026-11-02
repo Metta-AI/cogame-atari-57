@@ -1063,4 +1063,6 @@ proc runServerLoop*(
       joinThread(serverThread)
       break
 
-    runFrameLimiter(lastTick, not replayLoaded and config.fastMode, sockets)
+    # Readiness from early seats must not consume the remaining seats' join time.
+    runFrameLimiter(lastTick,
+      not replayLoaded and config.fastMode and game.phase != Lobby, sockets)
