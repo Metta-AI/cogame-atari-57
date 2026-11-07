@@ -11,10 +11,10 @@
 # the always() unset step keeps a failed run from leaving the runner — and any
 # later step in the same job — impersonating someone.
 #
-# Org secrets required on Metta-AI: SOFTMAX_TOKEN.
+# Org secrets required on softmax-universe: SOFTMAX_TOKEN.
 #
 # The agent reads the outcome back with:
-#   gh run download <run_id> -R Metta-AI/cogame-atari-57 -n submit-result \
+#   gh run download <run_id> -R softmax-universe/cogame-atari-57 -n submit-result \
 #     -D /tmp/sr && jq . /tmp/sr/submit-result.json
 name: Coworld submit
 

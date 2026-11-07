@@ -1,4 +1,4 @@
-# CI for a Coworld game repo (Metta-AI/cogame-atari-57).
+# CI for a Coworld game repo (softmax-universe/cogame-atari-57).
 #
 # Goes to:  .github/workflows/ci.yml  in the coworld repo.
 # Substitute: atari-57  (lowercase game slug, e.g. bullwhip)
